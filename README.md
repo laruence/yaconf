@@ -1,4 +1,4 @@
 yaconf
 ======
 
-A PHP Persistent Configures Container
+A PHP Persistent Configurations Container
