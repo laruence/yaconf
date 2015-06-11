@@ -1,0 +1,7 @@
+// $Id$
+// vim:ft=javascript
+
+if (PHP_YACONF != "no") {
+	EXTENSION("yaconf", "yaconf.c");
+}
+
