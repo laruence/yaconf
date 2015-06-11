@@ -13,27 +13,26 @@ Yaconf is a configurations container, it parses ini files, and store the result 
 ###Features
 - Fast, Light
 - Zero-copy while accesses configurations
-- Support sections, sections inheritance in configuration file
+- Support sections, sections inheritance
 - Configurations reload after file is changed
 
 ### Install
 
 #### Compile Yar in Linux
 ```
-$/path/to/php7/phpize
-$./configure --with-php-config=/path/to/php7/php-config/
-$make && make install
+$ /path/to/php7/phpize
+$ ./configure --with-php-config=/path/to/php7/php-config/
+$ make && make install
 ```
 
 ### Runtime Configure
 - yaconf.directory    // path to directory which all ini configuration files are putted
-- yaconf.check_delay  // in how much intval Yaconf will detects the file's change
+- yaconf.check_delay  // in which interval Yaconf will detects the file's change
 
 ### APIs
 
-#### Yaconf::get(string $name, mixed $default = NULL)
-#### Yaconf::has(string $name)
-
+#### mixed Yaconf::get(string $name, mixed $default = NULL)
+#### bool  Yaconf::has(string $name)
 
 ### Example
 
