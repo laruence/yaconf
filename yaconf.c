@@ -386,6 +386,7 @@ PHP_METHOD(yaconf, get) {
 	val = php_yaconf_get(name);
 	if (val) {
 		ZVAL_COPY_VALUE(return_value, val);
+		return;
 	} else if (defv) {
 		RETURN_ZVAL(defv, 1, 0);
 	}
