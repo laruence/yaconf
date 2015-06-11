@@ -39,12 +39,12 @@ typedef struct _yaconf_filenode {
 	time_t mtime;
 } yaconf_filenode;
 
-#define PALLOC_HASHTABLE(ht) do { \
-	(ht) = (zend_array*)pemalloc(sizeof(zend_array), 1); \
-	if ((ht) == NULL) { \
-		zend_error(E_ERROR, "Cannot allocate zend_array"); \
-	} \
-} while(0);
+#define PALLOC_HASHTABLE(ht)   do {                         \
+	(ht) = (zend_array*)pemalloc(sizeof(zend_array), 1);    \
+	if ((ht) == NULL) {                                     \
+		zend_error(E_ERROR, "Cannot allocate zend_array");  \
+	}                                                       \
+} while(0)
 
 /* {{{ ARG_INFO
  */
@@ -84,6 +84,16 @@ zend_module_entry yaconf_module_entry = {
 #ifdef COMPILE_DL_YACONF
 ZEND_GET_MODULE(yaconf)
 #endif
+
+static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
+	zend_array *ht;
+	PALLOC_HASHTABLE(ht);
+	zend_hash_init(ht, size, NULL, NULL, 1);
+	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
+	ZVAL_ARR(zv, ht);
+	Z_TYPE_FLAGS_P(zv) = IS_TYPE_IMMUTABLE;
+} 
+/* }}} */
 
 static void php_yaconf_hash_destroy(zend_array *ht) /* {{{ */ {
 	zend_string *key;
@@ -137,11 +147,8 @@ static void php_yaconf_zval_persistent(zval *zv, zval *rv) /* {{{ */ {
 			break;
 		case IS_ARRAY:
 			{
-				zend_array *ht;
-				PALLOC_HASHTABLE(ht);
-				zend_hash_init(ht, zend_hash_num_elements(Z_ARRVAL_P(zv)), NULL, NULL, 1);
-				ZVAL_ARR(rv, ht);
-				php_yaconf_hash_copy(ht, Z_ARRVAL_P(zv));
+				php_yaconf_hash_init(rv, zend_hash_num_elements(Z_ARRVAL_P(zv)));
+				php_yaconf_hash_copy(Z_ARRVAL_P(rv), Z_ARRVAL_P(zv));
 			}
 			break;
 		case IS_RESOURCE:
@@ -158,7 +165,6 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 	char       *seg, *skey, *ptr;
 	zval       *pzval, *target, rv;
 	zval       *arr = (zval *)arg;
-	zend_array *ht;
 
 	if (callback_type == ZEND_INI_PARSER_ENTRY) {
 		if (value == NULL) {
@@ -172,9 +178,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 				seg = php_strtok_r(NULL, ".", &ptr);
 				if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), real_key, strlen(real_key))) == NULL) {
 					if (seg) {
-						PALLOC_HASHTABLE(ht);
-						zend_hash_init(ht, 8, NULL, NULL, 1);
-						ZVAL_ARR(&rv, ht);
+						php_yaconf_hash_init(&rv, 8);
 						pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
 					} else {
 						php_yaconf_zval_persistent(value, &rv);
@@ -184,9 +188,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 				} else {
 					if (IS_ARRAY != Z_TYPE_P(pzval)) {
 						if (seg) {
-							PALLOC_HASHTABLE(ht);
-							zend_hash_init(ht, 8, NULL, NULL, 1);
-							ZVAL_ARR(&rv, ht);
+							php_yaconf_hash_init(&rv, 8);
 							pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
 						} else {
 							php_yaconf_zval_persistent(value, &rv);
@@ -207,9 +209,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 				&& is_numeric_string(Z_STRVAL_P(key), Z_STRLEN_P(key), NULL, NULL, 0) == IS_LONG) {
 			zend_long idx = (zend_long)zend_atol(Z_STRVAL_P(key), Z_STRLEN_P(key));
 			if ((pzval = zend_hash_index_find(Z_ARRVAL_P(arr), idx)) == NULL) {
-				PALLOC_HASHTABLE(ht);
-				zend_hash_init(ht, 8, NULL, NULL, 1);
-				ZVAL_ARR(&rv, ht);
+				php_yaconf_hash_init(&rv, 8);
 				pzval = zend_hash_index_update(Z_ARRVAL_P(arr), idx, &rv);
 			} 
 		} else {
@@ -220,9 +220,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 			if ((seg = php_strtok_r(skey, ".", &ptr))) {
 				do {
 					if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), seg, strlen(seg))) == NULL) {
-						PALLOC_HASHTABLE(ht);
-						zend_hash_init(ht, 8, NULL, NULL, 1);
-						ZVAL_ARR(&rv, ht);
+						php_yaconf_hash_init(&rv, 8);
 						pzval = zend_symtable_str_update(Z_ARRVAL_P(target), seg, strlen(seg), &rv);
 					}
 					target = pzval;
@@ -230,9 +228,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 				} while (seg);
 			} else {
 				if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), seg, strlen(seg))) == NULL) {
-					PALLOC_HASHTABLE(ht);
-					zend_hash_init(ht, 8, NULL, NULL, 1);
-					ZVAL_ARR(&rv, ht);
+					php_yaconf_hash_init(&rv, 8);
 					pzval = zend_symtable_str_update(Z_ARRVAL_P(target), seg, strlen(seg), &rv);
 				} 
 			}
@@ -241,9 +237,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 
 		if (Z_TYPE_P(pzval) != IS_ARRAY) {
 			zval_dtor(pzval);
-			PALLOC_HASHTABLE(ht);
-			zend_hash_init(ht, 8, NULL, NULL, 1);
-			ZVAL_ARR(pzval, ht);
+			php_yaconf_hash_init(pzval, 8);
 		}
 
 		php_yaconf_zval_persistent(value, &rv);
@@ -261,15 +255,12 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 	zval *arr = (zval *)arg;
 
 	if (callback_type == ZEND_INI_PARSER_SECTION) {
-		zend_array *ht;
 		zval *parent;
 		char *seg, *skey;
 
 		skey = estrndup(Z_STRVAL_P(key), Z_STRLEN_P(key));
 
-		PALLOC_HASHTABLE(ht);
-		zend_hash_init(ht, 128, NULL, NULL, 1);
-		ZVAL_ARR(&active_ini_file_section, ht);
+		php_yaconf_hash_init(&active_ini_file_section, 128);
 
 		if ((seg = strchr(skey, ':'))) {
 			char *section;
@@ -394,7 +385,7 @@ PHP_METHOD(yaconf, get) {
 
 	val = php_yaconf_get(name);
 	if (val) {
-		RETURN_ZVAL(val, 1, 0);
+		ZVAL_COPY_VALUE(return_value, val);
 	} else if (defv) {
 		RETURN_ZVAL(defv, 1, 0);
 	}
@@ -462,7 +453,6 @@ PHP_MINIT_FUNCTION(yaconf)
 			&& !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)
 #endif
 			) {
-		zend_array *ht;
 		zval result;
 		int ndir;
 		struct dirent **namelist;
@@ -491,9 +481,7 @@ PHP_MINIT_FUNCTION(yaconf)
 
 				snprintf(ini_file, MAXPATHLEN, "%s%c%s", dirname, DEFAULT_SLASH, namelist[i]->d_name);
 
-				PALLOC_HASHTABLE(ht);
-				zend_hash_init(ht, 128, NULL, NULL, 1);
-				ZVAL_ARR(&result, ht);
+				php_yaconf_hash_init(&result, 128);
 
 				zend_symtable_str_update(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name, &result);
 
@@ -545,7 +533,6 @@ PHP_RINIT_FUNCTION(yaconf)
 	} else {
 		char *dirname;
 		struct stat dir_sb = {0};
-		zend_array *ht;
 
 		YACONF_G(last_check) = time(NULL);
 
@@ -586,9 +573,7 @@ PHP_RINIT_FUNCTION(yaconf)
 							continue;
 						}
 
-						PALLOC_HASHTABLE(ht);
-						zend_hash_init(ht, 128, NULL, NULL, 1);
-						ZVAL_ARR(&result, ht);
+						php_yaconf_hash_init(&result, 128);
 
 						if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
 							fh.filename = ini_file;
