@@ -49,7 +49,7 @@ yaconf.directory=/tmp/yaconf
    Assuming there are two files in /tmp/yaconf
 
 foo.ini
-````
+````ini
 name="yaconf"
 year=2015
 features[]="fast"
@@ -57,9 +57,8 @@ features.1="light"
 features.plus="zero-copy"
 features.constant=PHP_VERSION
 ````
-
 and bar.ini
-````
+````ini
 [base]
 parent="yaconf"
 children="NULL"
@@ -67,11 +66,11 @@ children="NULL"
 [children:base]
 children="set"
 ````
-
 #### Run
+lets access the configurations
 
-foo.ini
-````
+##### foo.ini
+````php
 php7 -r 'var_dump(Yaconf::get("foo"));'
 /*
 array(3) {
@@ -93,23 +92,24 @@ array(3) {
 }
 */
 ````
-
 As you can see, Yaconf supports string, map(array), ini and PHP constants.
 
-And you can also access configurations like this:
-
-````
+you can also access configurations like this:
+````php
 php7 -r 'var_dump(Yaconf::get("foo.name"));'
 //string(6) "yaconf"
 
 php7 -r 'var_dump(Yaconf::get("foo.features.1"));'
 //string(5) "light"
+
+php7 -r 'var_dump(Yaconf::get("foo.features")["plus"]);'
+//string(9) "zero-copy"
 ````
 
-Now let see the sections and sections inheritance:
-
-````
-$ php7 -r 'var_dump(Yaconf::get("bar"));'
+##### bar.ini
+Now lets see the sections and sections inheritance:
+````php
+php7 -r 'var_dump(Yaconf::get("bar"));'
 /*
 array(2) {
   ["base"]=>
