@@ -18,7 +18,7 @@ Yaconf is a configurations container, it parses ini files, and store the result 
 
 ### Install
 
-#### Compile Yar in Linux
+#### Compile Yaconf in Linux
 ```
 $ /path/to/php7/phpize
 $ ./configure --with-php-config=/path/to/php7/php-config/
