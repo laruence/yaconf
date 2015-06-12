@@ -466,7 +466,7 @@ PHP_MINIT_FUNCTION(yaconf)
 		if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
 			int i;
 			struct stat sb;
-	        zend_file_handle fh = {0};
+			zend_file_handle fh = {0};
 
 			PALLOC_HASHTABLE(ini_containers);
 			zend_hash_init(ini_containers, ndir, NULL, NULL, 1);
