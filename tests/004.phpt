@@ -3,7 +3,7 @@ Check for Yaconf info
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.config.directory={PWD}/inis/
+yaconf.directory={PWD}/inis/
 --FILE--
 <?php 
 phpinfo(INFO_MODULES);
@@ -20,11 +20,11 @@ yaconf config last check time => %s
 parsed filename => mtime
 a.ini => %s
 
-bar.ini => %s
+b.ini => %s
 
 d.ini => %s
 
-foo.ini => %s
+e.ini => %s
 
 
 Directive => Local Value => Master Value

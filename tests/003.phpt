@@ -3,7 +3,7 @@ Check for Yaconf
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.config.directory={PWD}/inis/
+yaconf.directory={PWD}/inis/
 --FILE--
 <?php 
 var_dump(Yaconf::get("d.bar.application.test"));
