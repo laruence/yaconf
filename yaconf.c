@@ -656,7 +656,7 @@ PHP_MINFO_FUNCTION(yaconf)
 	if (parsed_ini_files && zend_hash_num_elements(parsed_ini_files)) {
 		yaconf_filenode *node;
 		ZEND_HASH_FOREACH_PTR(parsed_ini_files, node) {
-			php_info_print_table_row(2, node->filename,  ctime(&node->mtime));
+			php_info_print_table_row(2, node->filename->val,  ctime(&node->mtime));
 		} ZEND_HASH_FOREACH_END();
 	}
 	php_info_print_table_end();
