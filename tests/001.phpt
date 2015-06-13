@@ -1,5 +1,5 @@
 --TEST--
-Check for yaconf presence
+Check for Yaconf presence
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --FILE--

@@ -97,11 +97,10 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 
 static void php_yaconf_hash_destroy(HashTable *ht) /* {{{ */ {
 	zend_string *key;
-	zend_long idx;
-	zval *element, rv;
+	zval *element;
 
 	if (((ht)->u.flags & HASH_FLAG_INITIALIZED)) {
-		ZEND_HASH_FOREACH_KEY_VAL(ht, idx, key, element) {
+		ZEND_HASH_FOREACH_STR_KEY_VAL(ht, key, element) {
 			if (key) {
 				free(key);
 			}
