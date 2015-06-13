@@ -166,10 +166,10 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 	zval *pzval, *target, rv;
 	zval *arr = (zval *)arg;
 
+	if (value == NULL) {
+		return;
+	}
 	if (callback_type == ZEND_INI_PARSER_ENTRY) {
-		if (value == NULL) {
-			return;
-		}
 		target = arr;
 		skey = estrndup(Z_STRVAL_P(key), Z_STRLEN_P(key));
 		if ((seg = php_strtok_r(skey, ".", &ptr))) {
@@ -208,9 +208,6 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 		}
 		efree(skey);
 	} else if (callback_type == ZEND_INI_PARSER_POP_ENTRY) {
-		if (value == NULL) {
-			return;
-		}
 		if (!(Z_STRLEN_P(key) > 1 && Z_STRVAL_P(key)[0] == '0')
 				&& is_numeric_string(Z_STRVAL_P(key), Z_STRLEN_P(key), NULL, NULL, 0) == IS_LONG) {
 			zend_long idx = (zend_long)zend_atol(Z_STRVAL_P(key), Z_STRLEN_P(key));
@@ -367,31 +364,8 @@ PHPAPI zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 /* }}} */
 
 PHPAPI int php_yaconf_has(zend_string *name) /* {{{ */ {
-	if (ini_containers) {
-		zval *pzval;
-		HashTable *target = ini_containers;
-
-		if (zend_memrchr(name->val, '.', name->len)) {
-			char  *entry, *ptr, *seg;
-			entry = estrndup(name->val, name->len);
-			if ((seg = php_strtok_r(entry, ".", &ptr))) {
-				do {
-					if (target == NULL || !(pzval = zend_symtable_str_find(target, seg, strlen(seg)))) {
-						efree(entry);
-						return 0;
-					}
-					if (Z_TYPE_P(pzval) == IS_ARRAY) {
-						target = Z_ARRVAL_P(pzval);
-					} else {
-						target = NULL;
-					}
-				} while ((seg = php_strtok_r(NULL, ".", &ptr)));
-				efree(entry);
-				return 1;
-			}
-		} else {
-			return zend_symtable_exists(target, name);
-		}
+	if (php_yaconf_get(name)) {
+		return 1;
 	}
 	return 0;
 }
