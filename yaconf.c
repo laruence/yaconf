@@ -26,8 +26,8 @@
 
 ZEND_DECLARE_MODULE_GLOBALS(yaconf);
 
-static zend_array *ini_containers;
-static zend_array *parsed_ini_files;
+static HashTable *ini_containers;
+static HashTable *parsed_ini_files;
 static zval active_ini_file_section;
 
 zend_class_entry *yaconf_ce;
@@ -40,9 +40,9 @@ typedef struct _yaconf_filenode {
 } yaconf_filenode;
 
 #define PALLOC_HASHTABLE(ht)   do {                         \
-	(ht) = (zend_array*)pemalloc(sizeof(zend_array), 1);    \
+	(ht) = (HashTable*)pemalloc(sizeof(HashTable), 1);    \
 	if ((ht) == NULL) {                                     \
-		zend_error(E_ERROR, "Cannot allocate zend_array");  \
+		zend_error(E_ERROR, "Cannot allocate HashTable");  \
 	}                                                       \
 } while(0)
 
@@ -86,7 +86,7 @@ ZEND_GET_MODULE(yaconf)
 #endif
 
 static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
-	zend_array *ht;
+	HashTable *ht;
 	PALLOC_HASHTABLE(ht);
 	zend_hash_init(ht, size, NULL, NULL, 1);
 	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
@@ -95,7 +95,7 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 } 
 /* }}} */
 
-static void php_yaconf_hash_destroy(zend_array *ht) /* {{{ */ {
+static void php_yaconf_hash_destroy(HashTable *ht) /* {{{ */ {
 	zend_string *key;
 	zend_long idx;
 	zval *element, rv;
@@ -120,7 +120,7 @@ static void php_yaconf_hash_destroy(zend_array *ht) /* {{{ */ {
 	free(ht);
 } /* }}} */
 
-static void php_yaconf_hash_copy(zend_array *target, zend_array *source) /* {{{ */ {
+static void php_yaconf_hash_copy(HashTable *target, HashTable *source) /* {{{ */ {
 	zend_string *key;
 	zend_long idx;
 	zval *element, rv;
@@ -369,7 +369,7 @@ PHPAPI zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 PHPAPI int php_yaconf_has(zend_string *name) /* {{{ */ {
 	if (ini_containers) {
 		zval *pzval;
-		zend_array *target = ini_containers;
+		HashTable *target = ini_containers;
 
 		if (zend_memrchr(name->val, '.', name->len)) {
 			char  *entry, *ptr, *seg;
