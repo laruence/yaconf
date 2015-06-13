@@ -47,6 +47,7 @@ extern zend_module_entry yaconf_module_entry;
 
 ZEND_BEGIN_MODULE_GLOBALS(yaconf)
 	char *directory;
+	int   parse_err;
 #ifndef ZTS
 	long   check_delay;
 	time_t last_check;

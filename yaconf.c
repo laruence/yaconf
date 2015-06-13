@@ -162,9 +162,9 @@ static void php_yaconf_zval_persistent(zval *zv, zval *rv) /* {{{ */ {
 } /* }}} */
 
 static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int callback_type, void *arg) /* {{{ */ {
-	char       *seg, *skey, *ptr;
-	zval       *pzval, *target, rv;
-	zval       *arr = (zval *)arg;
+	char *seg, *skey, *ptr;
+	zval *pzval, *target, rv;
+	zval *arr = (zval *)arg;
 
 	if (callback_type == ZEND_INI_PARSER_ENTRY) {
 		if (value == NULL) {
@@ -173,8 +173,15 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 		target = arr;
 		skey = estrndup(Z_STRVAL_P(key), Z_STRLEN_P(key));
 		if ((seg = php_strtok_r(skey, ".", &ptr))) {
+			int nesting = 0;
 			do {
 				char *real_key = seg;
+				if (++nesting > 64) {
+					YACONF_G(parse_err) = 1;
+					php_error(E_WARNING, "Nesting too deep? key name contains more than 64 '.'");
+					efree(skey);
+					return;
+				}
 				seg = php_strtok_r(NULL, ".", &ptr);
 				if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), real_key, strlen(real_key))) == NULL) {
 					if (seg) {
@@ -204,7 +211,6 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 		if (value == NULL) {
 			return;
 		}
-
 		if (!(Z_STRLEN_P(key) > 1 && Z_STRVAL_P(key)[0] == '0')
 				&& is_numeric_string(Z_STRVAL_P(key), Z_STRLEN_P(key), NULL, NULL, 0) == IS_LONG) {
 			zend_long idx = (zend_long)zend_atol(Z_STRVAL_P(key), Z_STRLEN_P(key));
@@ -218,7 +224,14 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 
 			target = arr;
 			if ((seg = php_strtok_r(skey, ".", &ptr))) {
+				int nesting = 0;
 				do {
+					if (++nesting > 64) {
+						php_error(E_WARNING, "Nesting too deep? key name contains more than 64 '.'");
+						YACONF_G(parse_err) = 1;
+						efree(skey);
+						return;
+					}
 					if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), seg, strlen(seg))) == NULL) {
 						php_yaconf_hash_init(&rv, 8);
 						pzval = zend_symtable_str_update(Z_ARRVAL_P(target), seg, strlen(seg), &rv);
@@ -254,6 +267,10 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int callback_type, void *arg) /* {{{ */ {
 	zval *arr = (zval *)arg;
 
+	if (YACONF_G(parse_err)) {
+		return;
+	}
+
 	if (callback_type == ZEND_INI_PARSER_SECTION) {
 		zval *parent;
 		char *seg, *skey;
@@ -270,8 +287,15 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 			}
 
 			if ((section = strrchr(seg, ':'))) {
+				int nesting = 0;
 			    /* muilt-inherit */
 				do {
+					if (++nesting > 16) {
+						php_error(E_WARNING, "Nesting too deep? Only less than 16 level inheritance is allowed");
+						YACONF_G(parse_err) = 1;
+						efree(skey);
+						return;
+					}
 					while (*(section) == ' ' || *(section) == ':') {
 						*(section++) = '\0';
 					}
@@ -482,10 +506,6 @@ PHP_MINIT_FUNCTION(yaconf)
 
 				snprintf(ini_file, MAXPATHLEN, "%s%c%s", dirname, DEFAULT_SLASH, namelist[i]->d_name);
 
-				php_yaconf_hash_init(&result, 128);
-
-				zend_symtable_str_update(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name, &result);
-
 				if (VCWD_STAT(ini_file, &sb) == 0) {
 					if (S_ISREG(sb.st_mode)) {
 						yaconf_filenode node;
@@ -493,14 +513,21 @@ PHP_MINIT_FUNCTION(yaconf)
 							fh.filename = ini_file;
 							fh.type = ZEND_HANDLE_FP;
 				            ZVAL_UNDEF(&active_ini_file_section);
+							YACONF_G(parse_err) = 0;
+							php_yaconf_hash_init(&result, 128);
 							if (zend_parse_ini_file(&fh, 0, 0 /* ZEND_INI_SCANNER_NORMAL */,
-									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE) {
+									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
+								if (!YACONF_G(parse_err)) {
+									php_error(E_WARNING, "Parsing '%s' failed", ini_file);
+								}
+								YACONF_G(parse_err) = 0;
+								php_yaconf_hash_destroy(Z_ARRVAL(result));
 								free(namelist[i]);
-								php_error(E_WARNING, "Parsing '%s' failed", ini_file);
 								continue;
 							}
 						}
-						
+						zend_symtable_str_update(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name, &result);
+
 						node.filename = zend_string_init(namelist[i]->d_name, strlen(namelist[i]->d_name), 1);
 						node.mtime = sb.st_mtime;
 						zend_hash_update_mem(parsed_ini_files, node.filename, &node, sizeof(yaconf_filenode));
@@ -574,17 +601,20 @@ PHP_RINIT_FUNCTION(yaconf)
 							continue;
 						}
 
-						php_yaconf_hash_init(&result, 128);
-
 						if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
 							fh.filename = ini_file;
 							fh.type = ZEND_HANDLE_FP;
 							ZVAL_UNDEF(&active_ini_file_section);
+							YACONF_G(parse_err) = 0;
+							php_yaconf_hash_init(&result, 128);
 							if (zend_parse_ini_file(&fh, 0, 0 /* ZEND_INI_SCANNER_NORMAL */,
-									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE) {
+									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
+								YACONF_G(parse_err) = 0;
+								if (!YACONF_G(parse_err)) {
+									php_error(E_WARNING, "Parsing '%s' failed", ini_file);
+								}
+								php_yaconf_hash_destroy(Z_ARRVAL(result));
 								free(namelist[i]);
-								zval_dtor(&result);
-								php_error(E_NOTICE, "Parsing '%s' failed, ignored", ini_file);
 								continue;
 							}
 						}
