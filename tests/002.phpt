@@ -6,89 +6,97 @@ Check for Yaconf
 yaconf.directory={PWD}/inis/
 --FILE--
 <?php 
-print_r(Yaconf::get("a"));
-print_r(Yaconf::get("b"));
+var_dump(Yaconf::get("a"));
+var_dump(Yaconf::get("b"));
 var_dump(Yaconf::get("c"));
 var_dump(Yaconf::get("c", 1));
-print_r(Yaconf::get("d"));
+var_dump(Yaconf::get("d"));
 ?>
 --EXPECTF--
-Array
-(
-    [a] => b
-    [b] => Array
-        (
-            [0] => 1
-            [1] => 2
-        )
-
-)
-Array
-(
-    [test] => Array
-        (
-            [a] => Array
-                (
-                    [0] => 1
-                    [1] => 2
-                )
-
-        )
-
-    [ooo] => Array
-        (
-            [a] => Array
-                (
-                    [0] => 1
-                    [1] => 2
-                    [2] => 4
-                )
-
-        )
-
-)
+array(3) {
+  ["a"]=>
+  string(1) "b"
+  ["b"]=>
+  array(3) {
+    [0]=>
+    int(1)
+    [1]=>
+    int(2)
+    [3]=>
+    string(0) ""
+  }
+  ["c"]=>
+  array(4) {
+    ["a"]=>
+    string(4) "0802"
+    ["b"]=>
+    string(5) "0x123"
+    ["c"]=>
+    string(4) "1e10"
+    ["d"]=>
+    string(4) "123a"
+  }
+}
+array(2) {
+  ["test"]=>
+  array(1) {
+    ["a"]=>
+    array(2) {
+      [0]=>
+      int(1)
+      [1]=>
+      int(2)
+    }
+  }
+  ["ooo"]=>
+  array(1) {
+    ["a"]=>
+    array(3) {
+      [0]=>
+      int(1)
+      [1]=>
+      int(2)
+      [2]=>
+      int(4)
+    }
+  }
+}
 NULL
 int(1)
-Array
-(
-    [test] => Array
-        (
-            [application] => Array
-                (
-                    [test] => 
-                )
-
-        )
-
-    [foo] => Array
-        (
-            [foo] => Array
-                (
-                    [name] => Array
-                        (
-                            [0] => bar
-                        )
-
-                )
-
-        )
-
-    [bar] => Array
-        (
-            [application] => Array
-                (
-                    [test] => 1
-                )
-
-            [foo] => Array
-                (
-                    [name] => Array
-                        (
-                            [0] => bar
-                        )
-
-                )
-
-        )
-
-)
+array(3) {
+  ["test"]=>
+  array(1) {
+    ["application"]=>
+    array(1) {
+      ["test"]=>
+      string(0) ""
+    }
+  }
+  ["foo"]=>
+  array(1) {
+    ["foo"]=>
+    array(1) {
+      ["name"]=>
+      array(1) {
+        [0]=>
+        string(3) "bar"
+      }
+    }
+  }
+  ["bar"]=>
+  array(2) {
+    ["application"]=>
+    array(1) {
+      ["test"]=>
+      int(1)
+    }
+    ["foo"]=>
+    array(1) {
+      ["name"]=>
+      array(1) {
+        [0]=>
+        string(3) "bar"
+      }
+    }
+  }
+}

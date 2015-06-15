@@ -134,26 +134,47 @@ static void php_yaconf_hash_copy(HashTable *target, HashTable *source) /* {{{ */
 	} ZEND_HASH_FOREACH_END();
 } /* }}} */
 
+static inline int php_yaconf_is_long_string(zend_string *str) /* {{{ */ {
+	char *p = str->val;
+	char *end = str->val + str->len;
+
+	if (*p <= '0' || *p > '9') {
+		return 0;
+	}
+	
+	while (++p < end) {
+		if (!ZEND_IS_DIGIT(*p)) {
+			return 0;
+		}
+	}
+
+	return 1;
+} /* }}} */
+
 static void php_yaconf_zval_persistent(zval *zv, zval *rv) /* {{{ */ {
 	switch (Z_TYPE_P(zv)) {
 		case IS_CONSTANT:
 		case IS_STRING:
 			{
-				zend_string *str = zend_string_init(Z_STRVAL_P(zv), Z_STRLEN_P(zv), 1);
-				GC_FLAGS(str) |= IS_STR_INTERNED | IS_STR_PERMANENT;
-				ZVAL_INTERNED_STR(rv, str);
+				if (php_yaconf_is_long_string(Z_STR_P(zv))) {
+					ZVAL_LONG(rv, ZEND_STRTOL(Z_STRVAL_P(zv), NULL, 10));
+				} else {
+					zend_string *str = zend_string_init(Z_STRVAL_P(zv), Z_STRLEN_P(zv), 1);
+					GC_FLAGS(str) |= IS_STR_INTERNED | IS_STR_PERMANENT;
+					ZVAL_INTERNED_STR(rv, str);
+				}
 			}
 			break;
 		case IS_ARRAY:
-			{
-				php_yaconf_hash_init(rv, zend_hash_num_elements(Z_ARRVAL_P(zv)));
-				php_yaconf_hash_copy(Z_ARRVAL_P(rv), Z_ARRVAL_P(zv));
-			}
+			php_yaconf_hash_init(rv, zend_hash_num_elements(Z_ARRVAL_P(zv)));
+			php_yaconf_hash_copy(Z_ARRVAL_P(rv), Z_ARRVAL_P(zv));
+			break;
+		case IS_LONG:
+			ZVAL_LONG(rv, Z_LVAL_P(zv));
 			break;
 		case IS_RESOURCE:
 		case IS_OBJECT:
 		case _IS_BOOL:
-		case IS_LONG:
 		case IS_NULL:
 			ZEND_ASSERT(0);
 			break;
@@ -207,9 +228,9 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 		}
 		efree(skey);
 	} else if (callback_type == ZEND_INI_PARSER_POP_ENTRY) {
+		zend_long idx;
 		if (!(Z_STRLEN_P(key) > 1 && Z_STRVAL_P(key)[0] == '0')
-				&& is_numeric_string(Z_STRVAL_P(key), Z_STRLEN_P(key), NULL, NULL, 0) == IS_LONG) {
-			zend_long idx = (zend_long)zend_atol(Z_STRVAL_P(key), Z_STRLEN_P(key));
+				&& is_numeric_string(Z_STRVAL_P(key), Z_STRLEN_P(key), &idx, NULL, 0) == IS_LONG) {
 			if ((pzval = zend_hash_index_find(Z_ARRVAL_P(arr), idx)) == NULL) {
 				php_yaconf_hash_init(&rv, 8);
 				pzval = zend_hash_index_update(Z_ARRVAL_P(arr), idx, &rv);

@@ -12,7 +12,7 @@ var_dump(Yaconf::has("d.bar.application.nonexists"));
 var_dump(Yaconf::get("d.bar.application.nonexists", "default"));
 ?>
 --EXPECTF--
-string(1) "1"
+int(1)
 bool(true)
 bool(false)
 string(7) "default"
