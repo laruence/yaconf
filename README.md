@@ -55,6 +55,7 @@ features[]="fast"
 features.1="light"
 features.plus="zero-copy"
 features.constant=PHP_VERSION
+features.env=${HOME}
 ````
 and bar.ini
 ````ini
@@ -78,7 +79,7 @@ array(3) {
   ["year"]=>
   string(4) "2015"
   ["features"]=>
-  array(4) {
+  array(5) {
     [0]=>
     string(4) "fast"
     [1]=>
@@ -87,11 +88,13 @@ array(3) {
     string(9) "zero-copy"
     ["constant"]=>
     string(9) "7.0.0-dev"
+	[env] =>
+	string(16) "/home/huixinchen"
   }
 }
 */
 ````
-As you can see, Yaconf supports string, map(array), ini and PHP constants.
+As you can see, Yaconf supports string, map(array), ini, env variable and PHP constants.
 
 you can also access configurations like this:
 ````php
