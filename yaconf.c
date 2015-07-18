@@ -127,7 +127,7 @@ static void php_yaconf_hash_copy(HashTable *target, HashTable *source) /* {{{ */
 	ZEND_HASH_FOREACH_KEY_VAL(source, idx, key, element) {
 		php_yaconf_zval_persistent(element, &rv);
 		if (key) {
-			zend_hash_str_update(target, key->val, key->len, &rv);
+			zend_hash_str_update(target, ZSTR_VAL(key), ZSTR_LEN(key), &rv);
 		} else {
 			zend_hash_index_update(target, idx, &rv);
 		}
@@ -335,9 +335,9 @@ PHPAPI zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 		zval *pzval;
 		HashTable *target = ini_containers;
 
-		if (zend_memrchr(name->val, '.', name->len)) {
+		if (zend_memrchr(ZSTR_VAL(name), '.', ZSTR_LEN(name))) {
 			char *entry, *ptr, *seg;
-			entry = estrndup(name->val, name->len);
+			entry = estrndup(ZSTR_VAL(name), ZSTR_LEN(name));
 			if ((seg = php_strtok_r(entry, ".", &ptr))) {
 				do {
 					if (target == NULL || (pzval = zend_symtable_str_find(target, seg, strlen(seg))) == NULL) {
@@ -659,7 +659,7 @@ PHP_MINFO_FUNCTION(yaconf)
 	if (parsed_ini_files && zend_hash_num_elements(parsed_ini_files)) {
 		yaconf_filenode *node;
 		ZEND_HASH_FOREACH_PTR(parsed_ini_files, node) {
-			php_info_print_table_row(2, node->filename->val,  ctime(&node->mtime));
+			php_info_print_table_row(2, ZSTR_VAL(node->filename),  ctime(&node->mtime));
 		} ZEND_HASH_FOREACH_END();
 	}
 	php_info_print_table_end();
