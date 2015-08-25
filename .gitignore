@@ -15,3 +15,16 @@
 *.exe
 *.out
 *.app
+
+# Visual Studio
+
+*.opensdf
+*.sdf
+*.sln
+*.vcxproj
+*.vcxproj.filters
+bin/
+tmp/
+.vs/
+Debug/
+Release/

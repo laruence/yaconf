@@ -438,7 +438,7 @@ PHP_MINIT_FUNCTION(yaconf)
 	const char *dirname;
 	size_t dirlen;
 	zend_class_entry ce;
-	struct stat dir_sb = {0};
+	struct zend_stat dir_sb = {0};
 
 	REGISTER_INI_ENTRIES();
 
@@ -462,7 +462,7 @@ PHP_MINIT_FUNCTION(yaconf)
 
 		if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
 			int i;
-			struct stat sb;
+			struct zend_stat sb;
 			zend_file_handle fh = {0};
 
 			PALLOC_HASHTABLE(ini_containers);
@@ -533,7 +533,7 @@ PHP_RINIT_FUNCTION(yaconf)
 		return SUCCESS;
 	} else {
 		char *dirname;
-		struct stat dir_sb = {0};
+		struct zend_stat dir_sb = {0};
 
 		YACONF_G(last_check) = time(NULL);
 
@@ -550,7 +550,7 @@ PHP_RINIT_FUNCTION(yaconf)
 				YACONF_G(directory_mtime) = dir_sb.st_mtime;
 
 				if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
-					struct stat sb;
+					struct zend_stat sb;
 					zend_file_handle fh = {0};
 					yaconf_filenode *node = NULL;
 
