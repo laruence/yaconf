@@ -193,6 +193,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 					}
 				} else {
 					if (IS_ARRAY != Z_TYPE_P(pzval)) {
+						free(Z_PTR_P(pzval));
 						if (seg) {
 							php_yaconf_hash_init(&rv, 8);
 							pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
