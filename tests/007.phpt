@@ -1,5 +1,5 @@
 --TEST--
-Check for Yaconf with section 
+Check for Yaconf with same keys
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
