@@ -187,6 +187,11 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 						php_yaconf_hash_init(&rv, 8);
 						pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
 					} else {
+						/* 
+						 * seg == NULL; assign value to array
+						 * $conf[$real_key] = $rv
+						 *
+						 */
 						php_yaconf_zval_persistent(value, &rv);
 						zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
 						break;
@@ -197,6 +202,12 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 							php_yaconf_hash_init(&rv, 8);
 							pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
 						} else {
+							/* 
+							 * HashTable target already contains real_key,
+							 * free the old value and attach new value
+							 * 
+							 */
+							free(Z_PTR_P(pzval));
 							php_yaconf_zval_persistent(value, &rv);
 							pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
 						}
