@@ -13,6 +13,6 @@ array(1) {
   ["foo"]=>
   array(1) {
     ["a"]=>
-    string(5) "dummy"
+    string(3) "bar"
   }
 }

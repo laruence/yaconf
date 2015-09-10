@@ -201,7 +201,11 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 							php_yaconf_zval_persistent(value, &rv);
 							pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
 						}
-					} 
+					} else if (!seg) {
+						php_yaconf_hash_destroy(Z_ARRVAL_P(pzval));
+						php_yaconf_zval_persistent(value, &rv);
+						pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
+					}
 				}
 				target = pzval;
 			} while (seg);
