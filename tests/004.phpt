@@ -15,8 +15,7 @@ yaconf
 yaconf support => enabled
 version => %s
 yaconf config last check time => %s
-
-
+%A
 parsed filename => mtime
 a.ini => %s
 
@@ -28,4 +27,5 @@ e.ini => %s
 
 
 Directive => Local Value => Master Value
+yaconf.directory => %s => %s
 %a
