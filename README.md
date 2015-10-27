@@ -1,4 +1,5 @@
 ##Yaconf - Yet Another Configurations Container
+[![Build Status](https://secure.travis-ci.org/laruence/yaconf.png)](https://travis-ci.org/laruence/yaconf)
 ======
 
 A PHP Persistent Configurations Container
