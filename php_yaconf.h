@@ -36,7 +36,7 @@ extern zend_module_entry yaconf_module_entry;
 #define YACONF_G(v) (yaconf_globals.v)
 #endif
 
-#define YACONF_VERSION  "1.0.0-dev"
+#define YACONF_VERSION  "1.0.0"
 
 #ifdef YACONF_DEBUG
 #undef YACONF_DEBUG
