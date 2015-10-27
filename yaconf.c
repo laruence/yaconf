@@ -656,6 +656,8 @@ PHP_MINFO_FUNCTION(yaconf)
 	php_info_print_table_row(2, "version", PHP_YACONF_VERSION);
 #ifndef ZTS
 	php_info_print_table_row(2, "yaconf config last check time",  ctime(&(YACONF_G(last_check))));
+#else
+	php_info_print_table_row(2, "yaconf config last check time",  "-");
 #endif
 	php_info_print_table_end();
 
