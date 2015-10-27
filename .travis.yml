@@ -4,8 +4,9 @@ php:
   - 7.0
 
 notifications:
-  email: laruence@gmail.com
-  on_failure: change
+  email: false
+  irc: "irc.efnet.org#php.yaf"
+
 
    
 env:
