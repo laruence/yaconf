@@ -5,6 +5,8 @@ php:
 
 notifications:
   email: laruence@gmail.com
+  on_failure: change
+
    
 env:
   - REPORT_EXIT_STATUS=1 NO_INTERACTION=1
