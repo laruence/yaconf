@@ -1,6 +1,8 @@
 // $Id$
 // vim:ft=javascript
 
+ARG_ENABLE("yaconf", "enable yaconf support", "no");
+
 if (PHP_YACONF != "no") {
 	EXTENSION("yaconf", "yaconf.c");
 	PHP_INSTALL_HEADERS("ext/yaconf", "php_yaconf.h")

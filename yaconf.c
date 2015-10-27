@@ -72,7 +72,7 @@ zend_module_entry yaconf_module_entry = {
 #endif
 	NULL,
 	PHP_MINFO(yaconf),
-	YACONF_VERSION,
+	PHP_YACONF_VERSION,
 	PHP_MODULE_GLOBALS(yaconf),
 	PHP_GINIT(yaconf),
 	NULL,
@@ -335,7 +335,7 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 }
 /* }}} */
 
-PHPAPI zval *php_yaconf_get(zend_string *name) /* {{{ */ {
+PHP_YACONF_API zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 	if (ini_containers) {
 		zval *pzval;
 		HashTable *target = ini_containers;
@@ -367,7 +367,7 @@ PHPAPI zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 }
 /* }}} */
 
-PHPAPI int php_yaconf_has(zend_string *name) /* {{{ */ {
+PHP_YACONF_API int php_yaconf_has(zend_string *name) /* {{{ */ {
 	if (php_yaconf_get(name)) {
 		return 1;
 	}
@@ -653,7 +653,7 @@ PHP_MINFO_FUNCTION(yaconf)
 {
 	php_info_print_table_start();
 	php_info_print_table_header(2, "yaconf support", "enabled");
-	php_info_print_table_row(2, "version", YACONF_VERSION);
+	php_info_print_table_row(2, "version", PHP_YACONF_VERSION);
 #ifndef ZTS
 	php_info_print_table_row(2, "yaconf config last check time",  ctime(&(YACONF_G(last_check))));
 #endif

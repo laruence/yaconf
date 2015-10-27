@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<package xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" packagerversion="1.4.7" version="2.0" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0 http://pear.php.net/dtd/tasks-1.0.xsd http://pear.php.net/dtd/package-2.0 http://pear.php.net/dtd/package-2.0.xsd"> 
+ <name>yaconf</name>
+ <channel>pecl.php.net</channel>
+ <summary>PHP Persistent Configurations Container</summary>
+ <description>Yaconf is a configurations container, it parses ini files, and store the result in PHP when PHP is started</description>
+ <lead>
+  <name>Xinchen Hui</name>
+  <user>laruence</user>
+  <email>laruence@php.net</email>
+  <active>yes</active>
+ </lead>
+ <date>2015-10-27</date>
+ <time>13:36:00</time>
+ <version>
+  <release>1.0.0</release>
+  <api>1.0.0</api>
+ </version>
+ <stability>
+  <release>beta</release>
+  <api>beta</api>
+ </stability>
+ <license uri="http://www.php.net/license">PHP</license>
+ <notes>
+   - Release yaconf for PHP7
+ </notes>
+ <contents> 
+  <dir name="/"> 
+   <file name="config.m4"    role="src" />
+   <file name="php_yaconf.h" role="src" />
+   <file name="LICENSE" role="doc" />
+   <file name="CREDITS" role="doc" />
+   <file name="yaconf.c" role="src" />
+   <file name="config.w32" role="src" />
+   <dir name="tests">
+    <file name="001.phpt" role="test" />
+    <file name="002.phpt" role="test" />
+    <file name="003.phpt" role="test" />
+    <file name="004.phpt" role="test" />
+    <file name="005.phpt" role="test" />
+    <file name="006.phpt" role="test" />
+    <file name="007.phpt" role="test" />
+    <dir name="inis">
+     <file name="a.ini" role="test" />
+     <file name="a.ini.OLD" role="test" />
+     <file name="b.ini" role="test" />
+     <file name="d.ini" role="test" />
+     <file name="e.ini" role="test" />
+     <dir name="issue05">
+      <file name="issue05.ini" role="test" />
+     </dir>
+     <dir name="err">
+      <dir name="key">
+       <file name="a.ini" role="test" />
+      </dir>
+      <dir name="section">
+       <file name="a.ini" role="test" />
+      </dir>
+     </dir>
+    </dir>
+   </dir>
+  </dir> 
+ </contents> 
+ <dependencies> 
+  <required> 
+   <php> 
+    <min>7.0.0</min> 
+   </php> 
+   <pearinstaller> 
+    <min>1.4.0</min> 
+   </pearinstaller> 
+  </required> 
+ </dependencies> 
+ <providesextension>yaconf</providesextension>
+ <extsrcrelease />
+ <changelog> 
+  <release> 
+   <date>2015-10-27</date> 
+   <version> 
+    <release>1.0.0</release> 
+    <api>1.0.0</api> 
+   </version> 
+   <stability> 
+    <release>beta</release> 
+    <api>beta</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Release yaconf for PHP7
+   </notes> 
+  </release> 
+ </changelog> 
+</package> 
+<!--
+vim:et:ts=1:sw=1
+--> 

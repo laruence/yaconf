@@ -36,7 +36,7 @@ extern zend_module_entry yaconf_module_entry;
 #define YACONF_G(v) (yaconf_globals.v)
 #endif
 
-#define YACONF_VERSION  "1.0.0-dev"
+#define PHP_YACONF_VERSION  "1.0.1-dev"
 
 #ifdef YACONF_DEBUG
 #undef YACONF_DEBUG
@@ -66,8 +66,8 @@ PHP_GINIT_FUNCTION(yaconf);
 extern ZEND_DECLARE_MODULE_GLOBALS(yaconf);
 
 BEGIN_EXTERN_C() 
-PHPAPI zval *php_yaconf_get(zend_string *name);
-PHPAPI int php_yaconf_has(zend_string *name);
+PHP_YACONF_API zval *php_yaconf_get(zend_string *name);
+PHP_YACONF_API int php_yaconf_has(zend_string *name);
 END_EXTERN_C()
 
 #endif	/* PHP_YACONF_H */
