@@ -28,6 +28,4 @@ e.ini => %s
 
 
 Directive => Local Value => Master Value
-yaconf.check_delay => %d => %d
-yaconf.directory => %s => %s
 %a
