@@ -1,0 +1,17 @@
+language: php 
+
+php:
+  - 7.0
+
+notifications:
+  email: laruence@gmail.com
+   
+env:
+  - REPORT_EXIT_STATUS=1 NO_INTERACTION=1
+
+#Compile
+before_script:
+    - ./travis/compile.sh
+
+# Run PHPs run-tests.php 
+script: make test
