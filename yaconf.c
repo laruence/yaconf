@@ -335,7 +335,7 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 }
 /* }}} */
 
-PHPAPI zval *php_yaconf_get(zend_string *name) /* {{{ */ {
+PHP_YACONF_API zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 	if (ini_containers) {
 		zval *pzval;
 		HashTable *target = ini_containers;
@@ -367,7 +367,7 @@ PHPAPI zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 }
 /* }}} */
 
-PHPAPI int php_yaconf_has(zend_string *name) /* {{{ */ {
+PHP_YACONF_API int php_yaconf_has(zend_string *name) /* {{{ */ {
 	if (php_yaconf_get(name)) {
 		return 1;
 	}
