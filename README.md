@@ -137,8 +137,7 @@ Children section has inherited values in base sections, and children is able to 
 
 ##### NOTICE
 
-If you frequently update your config file online, Linux's Copy-On-Write will Copy new memory for each workr process, So please
-Do not set your ```pm.max_requests = 0```
+If you frequently update your config file online, Linux's Copy-On-Write will COPY new memory for each worker process, So please DO NOT SET YOUR ```pm.max_requests = 0```
 
 
 
