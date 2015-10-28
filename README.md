@@ -27,7 +27,7 @@ $ make && make install
 
 ### Runtime Configure
 - yaconf.directory    // path to directory which all ini configuration files are putted
-- yaconf.check_delay  // in which interval Yaconf will detects the file's change
+- yaconf.check_delay  // in which time interval(seconds) Yaconf will detects the file's change
 
 ### APIs
 
@@ -135,6 +135,10 @@ array(2) {
 Children section has inherited values in base sections, and children is able to override the values they want.
 
 
+##### NOTICE
+
+If you frequently update your config file online, Linux's Copy-On-Write will Copy new memory for each workr process, So please
+Do not set your ```pm.max_requests = 0```
 
 
 
