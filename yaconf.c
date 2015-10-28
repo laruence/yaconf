@@ -72,7 +72,7 @@ zend_module_entry yaconf_module_entry = {
 #endif
 	NULL,
 	PHP_MINFO(yaconf),
-	YACONF_VERSION,
+	PHP_YACONF_VERSION,
 	PHP_MODULE_GLOBALS(yaconf),
 	PHP_GINIT(yaconf),
 	NULL,
@@ -653,7 +653,7 @@ PHP_MINFO_FUNCTION(yaconf)
 {
 	php_info_print_table_start();
 	php_info_print_table_header(2, "yaconf support", "enabled");
-	php_info_print_table_row(2, "version", YACONF_VERSION);
+	php_info_print_table_row(2, "version", PHP_YACONF_VERSION);
 #ifndef ZTS
 	php_info_print_table_row(2, "yaconf config last check time",  ctime(&(YACONF_G(last_check))));
 #endif
