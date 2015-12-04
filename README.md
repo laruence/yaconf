@@ -22,7 +22,7 @@ Yaconf is a configurations container, it parses ini files, and store the result 
 Yaf is an PECL extension, thus you can simply install it by:
 
 ```
-$pecl install yaf
+$pecl install yaconf
 ```
 Or you can compile it by your self:
 ```
