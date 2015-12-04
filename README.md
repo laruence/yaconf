@@ -1,6 +1,5 @@
-##Yaconf - Yet Another Configurations Container
+#Yaconf - Yet Another Configurations Container
 [![Build Status](https://secure.travis-ci.org/laruence/yaconf.png)](https://travis-ci.org/laruence/yaconf)
-======
 
 A PHP Persistent Configurations Container
 
@@ -20,6 +19,12 @@ Yaconf is a configurations container, it parses ini files, and store the result 
 ### Install
 
 #### Compile Yaconf in Linux
+Yaf is an PECL extension, thus you can simply install it by:
+
+```
+$pecl install yaf
+```
+Or you can compile it by your self:
 ```
 $ /path/to/php7/phpize
 $ ./configure --with-php-config=/path/to/php7/php-config/
