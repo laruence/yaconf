@@ -27,5 +27,6 @@ e.ini => %s
 
 
 Directive => Local Value => Master Value
+%a
 yaconf.directory => %s => %s
 %a

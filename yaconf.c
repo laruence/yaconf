@@ -42,7 +42,7 @@ typedef struct _yaconf_filenode {
 #define PALLOC_HASHTABLE(ht)   do {                         \
 	(ht) = (HashTable*)pemalloc(sizeof(HashTable), 1);    \
 	if ((ht) == NULL) {                                     \
-		zend_error(E_ERROR, "Cannot allocate HashTable");  \
+		zend_error(E_ERROR, "Cannot allocate HashTable, not enough memory?");  \
 	}                                                       \
 } while(0)
 
@@ -91,6 +91,7 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	zend_hash_init(ht, size, NULL, NULL, 1);
 	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
 	ZVAL_ARR(zv, ht);
+	Z_ADDREF_P(zv);
 	Z_TYPE_FLAGS_P(zv) = IS_TYPE_IMMUTABLE;
 } 
 /* }}} */
@@ -119,6 +120,28 @@ static void php_yaconf_hash_destroy(HashTable *ht) /* {{{ */ {
 	free(ht);
 } /* }}} */
 
+static zval* php_yaconf_symtable_update(HashTable *ht, zend_string *key, zval *zv) /* {{{ */ {
+	zend_ulong idx;
+	if (ZEND_HANDLE_NUMERIC(key, idx)) {
+		free(key);
+		return zend_hash_index_update(ht, idx, zv);
+	} else {
+		return zend_hash_update(ht, key, zv);
+	}
+}
+/* }}} */
+
+static zend_string* php_yaconf_str_persistent(char *str, size_t len) /* {{{ */ {
+	zend_string *key = zend_string_init(str, len, 1);
+	if (key == NULL) {
+		zend_error(E_ERROR, "Cannot allocate string, not enough memory?");
+	}
+	key->h = zend_string_hash_val(key);
+	GC_FLAGS(key) |= IS_STR_INTERNED | IS_STR_PERMANENT;
+	return key;
+}
+/* }}} */
+	
 static void php_yaconf_hash_copy(HashTable *target, HashTable *source) /* {{{ */ {
 	zend_string *key;
 	zend_long idx;
@@ -127,7 +150,7 @@ static void php_yaconf_hash_copy(HashTable *target, HashTable *source) /* {{{ */
 	ZEND_HASH_FOREACH_KEY_VAL(source, idx, key, element) {
 		php_yaconf_zval_persistent(element, &rv);
 		if (key) {
-			zend_hash_str_update(target, ZSTR_VAL(key), ZSTR_LEN(key), &rv);
+			zend_hash_update(target, php_yaconf_str_persistent(ZSTR_VAL(key), ZSTR_LEN(key)), &rv);
 		} else {
 			zend_hash_index_update(target, idx, &rv);
 		}
@@ -138,11 +161,7 @@ static void php_yaconf_zval_persistent(zval *zv, zval *rv) /* {{{ */ {
 	switch (Z_TYPE_P(zv)) {
 		case IS_CONSTANT:
 		case IS_STRING:
-			{
-				zend_string *str = zend_string_init(Z_STRVAL_P(zv), Z_STRLEN_P(zv), 1);
-				GC_FLAGS(str) |= IS_STR_INTERNED | IS_STR_PERMANENT;
-				ZVAL_INTERNED_STR(rv, str);
-			}
+			ZVAL_INTERNED_STR(rv, php_yaconf_str_persistent(Z_STRVAL_P(zv), Z_STRLEN_P(zv)));
 			break;
 		case IS_ARRAY:
 			{
@@ -185,26 +204,24 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 				if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), real_key, strlen(real_key))) == NULL) {
 					if (seg) {
 						php_yaconf_hash_init(&rv, 8);
-						pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
+						pzval = php_yaconf_symtable_update(Z_ARRVAL_P(target),
+								php_yaconf_str_persistent(real_key, strlen(real_key)), &rv);
 					} else {
 						php_yaconf_zval_persistent(value, &rv);
-						zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
-						break;
+						php_yaconf_symtable_update(Z_ARRVAL_P(target),
+								php_yaconf_str_persistent(real_key, strlen(real_key)), &rv);
 					}
 				} else {
 					if (IS_ARRAY != Z_TYPE_P(pzval)) {
 						free(Z_PTR_P(pzval));
 						if (seg) {
-							php_yaconf_hash_init(&rv, 8);
-							pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
+							php_yaconf_hash_init(pzval, 8);
 						} else {
-							php_yaconf_zval_persistent(value, &rv);
-							pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
+							php_yaconf_zval_persistent(value, pzval);
 						}
 					} else if (!seg) {
 						php_yaconf_hash_destroy(Z_ARRVAL_P(pzval));
-						php_yaconf_zval_persistent(value, &rv);
-						pzval = zend_symtable_str_update(Z_ARRVAL_P(target), real_key, strlen(real_key), &rv);
+						php_yaconf_zval_persistent(value, pzval);
 					}
 				}
 				target = pzval;
@@ -235,7 +252,8 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 					}
 					if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), seg, strlen(seg))) == NULL) {
 						php_yaconf_hash_init(&rv, 8);
-						pzval = zend_symtable_str_update(Z_ARRVAL_P(target), seg, strlen(seg), &rv);
+						pzval = php_yaconf_symtable_update(Z_ARRVAL_P(target),
+								php_yaconf_str_persistent(seg, strlen(seg)), &rv);
 					}
 					target = pzval;
 					seg = php_strtok_r(NULL, ".", &ptr);
@@ -243,7 +261,8 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 			} else {
 				if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), seg, strlen(seg))) == NULL) {
 					php_yaconf_hash_init(&rv, 8);
-					pzval = zend_symtable_str_update(Z_ARRVAL_P(target), seg, strlen(seg), &rv);
+					pzval = php_yaconf_symtable_update(Z_ARRVAL_P(target),
+							php_yaconf_str_persistent(seg, strlen(seg)), &rv);
 				} 
 			}
 			efree(skey);
@@ -256,9 +275,19 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 
 		php_yaconf_zval_persistent(value, &rv);
 		if (index && Z_STRLEN_P(index) > 0) {
-			add_assoc_zval_ex(pzval, Z_STRVAL_P(index), Z_STRLEN_P(index), &rv);
+			if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), Z_STRVAL_P(index), Z_STRLEN_P(index))) == NULL) {
+				php_yaconf_symtable_update(Z_ARRVAL_P(pzval),
+						php_yaconf_str_persistent(Z_STRVAL_P(index), Z_STRLEN_P(index)), &rv);
+			} else {
+				if (Z_TYPE_P(pzval) == IS_ARRAY) {
+					php_yaconf_hash_destroy(Z_ARRVAL_P(pzval));
+				} else {
+					free(Z_PTR_P(pzval));
+				}
+				ZVAL_COPY_VALUE(pzval, &rv);
+			}
 		} else {
-			add_next_index_zval(pzval, &rv);
+			zend_hash_next_index_insert(Z_ARRVAL_P(pzval), &rv);
 		}
 	} else if (callback_type == ZEND_INI_PARSER_SECTION) {
 	}
@@ -320,7 +349,8 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 		while (*seg == ' ' || *seg == ':') {
 			*(seg--) = '\0';
 		}	
-		zend_symtable_str_update(Z_ARRVAL_P(arr), skey, strlen(skey), &active_ini_file_section);
+		php_yaconf_symtable_update(Z_ARRVAL_P(arr),
+				php_yaconf_str_persistent(skey, strlen(skey)), &active_ini_file_section);
 
 		efree(skey);
 	} else if (value) {
@@ -466,7 +496,8 @@ PHP_MINIT_FUNCTION(yaconf)
 #endif
 
 		if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
-			int i;
+			uint32_t i;
+			unsigned char c;
 			struct zend_stat sb;
 			zend_file_handle fh = {0};
 
@@ -504,7 +535,9 @@ PHP_MINIT_FUNCTION(yaconf)
 								continue;
 							}
 						}
-						zend_symtable_str_update(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name, &result);
+						
+						php_yaconf_symtable_update(ini_containers,
+								php_yaconf_str_persistent(namelist[i]->d_name, p - namelist[i]->d_name), &result);
 
 						node.filename = zend_string_init(namelist[i]->d_name, strlen(namelist[i]->d_name), 1);
 						node.mtime = sb.st_mtime;
@@ -555,6 +588,7 @@ PHP_RINIT_FUNCTION(yaconf)
 				YACONF_G(directory_mtime) = dir_sb.st_mtime;
 
 				if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
+					zend_string *file_key;
 					struct zend_stat sb;
 					zend_file_handle fh = {0};
 					yaconf_filenode *node = NULL;
@@ -597,13 +631,14 @@ PHP_RINIT_FUNCTION(yaconf)
 							}
 						}
 
-						if ((orig_ht = zend_symtable_str_find(ini_containers,
-										namelist[i]->d_name, p - namelist[i]->d_name)) != NULL) {
+
+						file_key = php_yaconf_str_persistent(namelist[i]->d_name, p - namelist[i]->d_name);
+						if ((orig_ht = zend_symtable_find(ini_containers, file_key)) != NULL) {
 							php_yaconf_hash_destroy(Z_ARRVAL_P(orig_ht));
 							ZVAL_COPY_VALUE(orig_ht, &result);
+							free(file_key);
 						} else {
-							zend_symtable_str_update(ini_containers,
-									namelist[i]->d_name, p - namelist[i]->d_name, &result);
+							php_yaconf_symtable_update(ini_containers, file_key, &result);
 						}
 
 						if (node) {
