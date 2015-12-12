@@ -10,11 +10,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2015-10-27</date>
- <time>13:36:00</time>
+ <date>2015-12-12</date>
+ <time>21:41:00</time>
  <version>
-  <release>1.0.0</release>
-  <api>1.0.0</api>
+  <release>1.0.1</release>
+  <api>1.0.1</api>
  </version>
  <stability>
   <release>beta</release>
@@ -22,7 +22,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-   - Release yaconf for PHP7
+   - Fixed various bugs
  </notes>
  <contents> 
   <dir name="/"> 
@@ -74,6 +74,22 @@
  <providesextension>yaconf</providesextension>
  <extsrcrelease />
  <changelog> 
+  <release> 
+   <date>2015-12-12</date> 
+   <version> 
+    <release>1.0.1</release> 
+    <api>1.0.1</api> 
+   </version> 
+   <stability> 
+    <release>beta</release> 
+    <api>beta</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Fixed various bugs
+   </notes> 
+  </release> 
+
   <release> 
    <date>2015-10-27</date> 
    <version> 
