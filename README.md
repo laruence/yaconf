@@ -19,7 +19,7 @@ Yaconf is a configurations container, it parses ini files, and store the result 
 ### Install
 
 #### Compile Yaconf in Linux
-Yaf is an PECL extension, thus you can simply install it by:
+Yaconf is an PECL extension, thus you can simply install it by:
 
 ```
 $pecl install yaconf
