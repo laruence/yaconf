@@ -26,14 +26,15 @@ $pecl install yaconf
 ```
 Or you can compile it by your self:
 ```
-$ /path/to/php7/phpize
-$ ./configure --with-php-config=/path/to/php7/php-config/
+$ /path/to/php7/bin/phpize
+$ ./configure --with-php-config=/path/to/php7/bin/php-config
 $ make && make install
 ```
 
 ### Runtime Configure
 - yaconf.directory    // path to directory which all ini configuration files are putted
-- yaconf.check_delay  // in which interval Yaconf will detects the file's change
+- yaconf.check_delay  // in which interval Yaconf will detects the file's change, if it is set to zero,
+                      // then you have to restart php for file's change takes affect
 
 ### APIs
 
