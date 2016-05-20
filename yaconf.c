@@ -255,6 +255,10 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 						pzval = php_yaconf_symtable_update(Z_ARRVAL_P(target),
 								php_yaconf_str_persistent(seg, strlen(seg)), &rv);
 					}
+					if (IS_ARRAY != Z_TYPE_P(pzval)) {
+						free(Z_PTR_P(pzval));
+						php_yaconf_hash_init(pzval, 8);
+					}
 					target = pzval;
 					seg = php_strtok_r(NULL, ".", &ptr);
 				} while (seg);
