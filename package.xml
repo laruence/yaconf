@@ -10,19 +10,19 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2015-12-12</date>
- <time>21:41:00</time>
+ <date>2016-05-26</date>
+ <time>17:13:00</time>
  <version>
-  <release>1.0.1</release>
-  <api>1.0.1</api>
+  <release>1.0.2</release>
+  <api>1.0.2</api>
  </version>
  <stability>
-  <release>beta</release>
-  <api>beta</api>
+  <release>stable</release>
+  <api>stable</api>
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-   - Fixed various bugs
+  - Fixed ISSUE #14 (segfault with pop entry)
  </notes>
  <contents> 
   <dir name="/"> 
@@ -40,6 +40,7 @@
     <file name="005.phpt" role="test" />
     <file name="006.phpt" role="test" />
     <file name="007.phpt" role="test" />
+    <file name="008.phpt" role="test" />
     <dir name="inis">
      <file name="a.ini" role="test" />
      <file name="a.ini.OLD" role="test" />
@@ -48,6 +49,9 @@
      <file name="e.ini" role="test" />
      <dir name="issue05">
       <file name="issue05.ini" role="test" />
+     </dir>
+     <dir name="issue14">
+      <file name="issue14.ini" role="test" />
      </dir>
      <dir name="err">
       <dir name="key">
@@ -75,6 +79,22 @@
  <extsrcrelease />
  <changelog> 
   <release> 
+   <date>2016-05-26</date> 
+   <version> 
+    <release>1.0.2</release> 
+    <api>1.0.2</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Fixed ISSUE #14 (segfault with pop entry)
+   </notes> 
+  </release> 
+
+  <release> 
    <date>2015-12-12</date> 
    <version> 
     <release>1.0.1</release> 
@@ -89,7 +109,6 @@
     - Fixed various bugs
    </notes> 
   </release> 
-
   <release> 
    <date>2015-10-27</date> 
    <version> 
