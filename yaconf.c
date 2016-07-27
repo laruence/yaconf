@@ -39,11 +39,11 @@ typedef struct _yaconf_filenode {
 	time_t mtime;
 } yaconf_filenode;
 
-#define PALLOC_HASHTABLE(ht)   do {                         \
-	(ht) = (HashTable*)pemalloc(sizeof(HashTable), 1);    \
-	if ((ht) == NULL) {                                     \
-		zend_error(E_ERROR, "Cannot allocate HashTable, not enough memory?");  \
-	}                                                       \
+#define PALLOC_HASHTABLE(ht)   do {                                                       \
+	(ht) = (HashTable*)pemalloc(sizeof(HashTable), 1);                                    \
+	if ((ht) == NULL) {                                                                   \
+		zend_error(E_ERROR, "Cannot allocate persistent HashTable, out enough memory?");  \
+	}                                                                                     \
 } while(0)
 
 /* {{{ ARG_INFO
@@ -599,7 +599,7 @@ PHP_RINIT_FUNCTION(yaconf)
 
 					for (i = 0; i < ndir; i++) {
 						zval *orig_ht = NULL;
-						if (!(p = strrchr(namelist[i]->d_name, '.')) || (p && strcmp(p, ".ini"))) {
+						if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
 							free(namelist[i]);
 							continue;
 						}
