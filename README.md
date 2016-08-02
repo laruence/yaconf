@@ -32,9 +32,10 @@ $ make && make install
 ```
 
 ### Runtime Configure
+
 - yaconf.directory    // path to directory which all ini configuration files are putted
-- yaconf.check_delay  // in which interval Yaconf will detects the file's change, if it is set to zero,
-                      // then you have to restart php for file's change takes affect
+- yaconf.check_delay  // in which interval Yaconf will detect the file's change(by directory's mtime),
+                      // if it is set to zero, you have to restart php for file's change takes affect
 
 ### APIs
 
