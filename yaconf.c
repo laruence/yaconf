@@ -88,10 +88,10 @@ ZEND_GET_MODULE(yaconf)
 static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	HashTable *ht;
 	PALLOC_HASHTABLE(ht);
-	zend_hash_init(ht, size, NULL, NULL, 1);
+	zend_hash_init(ht, size, NULL, ZVAL_PTR_DTOR, 1);
 	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
+	GC_REFCOUNT(ht) = 2;
 	ZVAL_ARR(zv, ht);
-	Z_ADDREF_P(zv);
 	Z_TYPE_FLAGS_P(zv) = IS_TYPE_IMMUTABLE;
 } 
 /* }}} */
@@ -421,8 +421,7 @@ PHP_METHOD(yaconf, get) {
 
 	val = php_yaconf_get(name);
 	if (val) {
-		ZVAL_COPY_VALUE(return_value, val);
-		return;
+		RETURN_ZVAL(val, 0, 0);
 	} else if (defv) {
 		RETURN_ZVAL(defv, 1, 0);
 	}

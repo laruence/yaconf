@@ -10,11 +10,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2016-05-26</date>
+ <date>2016-?-?</date>
  <time>17:13:00</time>
  <version>
-  <release>1.0.2</release>
-  <api>1.0.2</api>
+  <release>1.0.3</release>
+  <api>1.0.3</api>
  </version>
  <stability>
   <release>stable</release>
@@ -22,7 +22,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Fixed ISSUE #14 (segfault with pop entry)
+  - Fixed ISSUE #19 (Memory leak on foreach and reference)
  </notes>
  <contents> 
   <dir name="/"> 
@@ -41,6 +41,7 @@
     <file name="006.phpt" role="test" />
     <file name="007.phpt" role="test" />
     <file name="008.phpt" role="test" />
+    <file name="issue19.phpt" role="test" />
     <dir name="inis">
      <file name="a.ini" role="test" />
      <file name="a.ini.OLD" role="test" />
