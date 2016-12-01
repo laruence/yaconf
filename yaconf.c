@@ -529,9 +529,6 @@ PHP_MINIT_FUNCTION(yaconf)
 							php_yaconf_hash_init(&result, 128);
 							if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
 									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
-								if (!YACONF_G(parse_err)) {
-									php_error(E_WARNING, "Parsing '%s' failed", ini_file);
-								}
 								YACONF_G(parse_err) = 0;
 								php_yaconf_hash_destroy(Z_ARRVAL(result));
 								free(namelist[i]);
@@ -624,9 +621,6 @@ PHP_RINIT_FUNCTION(yaconf)
 							php_yaconf_hash_init(&result, 128);
 							if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
 									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
-								if (!YACONF_G(parse_err)) {
-									php_error(E_WARNING, "Parsing '%s' failed", ini_file);
-								}
 								YACONF_G(parse_err) = 0;
 								php_yaconf_hash_destroy(Z_ARRVAL(result));
 								free(namelist[i]);
