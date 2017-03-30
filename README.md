@@ -1,4 +1,4 @@
-#Yaconf - Yet Another Configurations Container
+# Yaconf - Yet Another Configurations Container
 [![Build Status](https://secure.travis-ci.org/laruence/yaconf.png)](https://travis-ci.org/laruence/yaconf)
 
 A PHP Persistent Configurations Container
@@ -10,7 +10,7 @@ A PHP Persistent Configurations Container
 
 Yaconf is a configurations container, it parses ini files, and store the result in PHP when PHP is started.
 
-###Features
+### Features
 - Fast, Light
 - Zero-copy while accesses configurations
 - Support sections, sections inheritance
@@ -31,16 +31,16 @@ $ ./configure --with-php-config=/path/to/php7/bin/php-config
 $ make && make install
 ```
 
-### Runtime Configure
+### Runtime configuration
 
-- yaconf.directory    
+- yaconf.directory
 ```
-   path to directory which all ini configuration files are placed in
+  Path to directory which all ini configuration files are placed in
 ```
-- yaconf.check_delay  
+- yaconf.check_delay
 ```
-   in which interval Yaconf will detect ini file's change(by directory's mtime),
-   if it is set to zero, you have to restart php to reloading configurations.
+  In which interval Yaconf will detect ini file's change(by directory's mtime),
+  if it is set to zero, you have to restart php to reloading configurations.
 ```
 
 ### APIs
@@ -51,15 +51,15 @@ $ make && make install
 ### Example
 
 #### Directory
- 
-   Assuming we place all configurations files in /tmp/yaconf/, thus we added this into php.ini
+
+Assuming we place all configurations files in /tmp/yaconf/, thus we added this into php.ini
 ```
 yaconf.directory=/tmp/yaconf
 ````
 
 #### INI Files
 
-   Assuming there are two files in /tmp/yaconf
+Assuming there are two files in /tmp/yaconf
 
 foo.ini
 ````ini
@@ -110,7 +110,7 @@ array(3) {
 ````
 As you can see, Yaconf supports string, map(array), ini, env variable and PHP constants.
 
-you can also access configurations like this:
+You can also access configurations like this:
 ````php
 php7 -r 'var_dump(Yaconf::get("foo.name"));'
 //string(6) "yaconf"
@@ -123,7 +123,7 @@ php7 -r 'var_dump(Yaconf::get("foo.features")["plus"]);'
 ````
 
 ##### bar.ini
-Now lets see the sections and sections inheritance:
+Now let's see the sections and sections inheritance:
 ````php
 php7 -r 'var_dump(Yaconf::get("bar"));'
 /*
@@ -146,9 +146,4 @@ array(2) {
 */
 ````
 
-Children section has inherited values in base sections, and children is able to override the values they want.
-
-
-
-
-
+Children section has inherited values in base sections, and children were able to override the values they want.
