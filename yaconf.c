@@ -92,7 +92,11 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
 	GC_REFCOUNT(ht) = 2;
 	ZVAL_ARR(zv, ht);
+#ifdef IS_TYPE_IMMUTABLE
 	Z_TYPE_FLAGS_P(zv) = IS_TYPE_IMMUTABLE;
+#else
+	Z_TYPE_FLAGS_P(zv) = IS_TYPE_COPYABLE;
+#endif
 } 
 /* }}} */
 
@@ -500,7 +504,6 @@ PHP_MINIT_FUNCTION(yaconf)
 
 		if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
 			uint32_t i;
-			unsigned char c;
 			struct zend_stat sb;
 			zend_file_handle fh = {0};
 
