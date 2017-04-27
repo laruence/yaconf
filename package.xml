@@ -22,7 +22,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Fixed issue #20 (Segfault during test suite with 7.1.0GA (TS))
+  - Fixed issue #26 (Segmentation fault $php_fpm_BIN --daemonize $php_opts)
  </notes>
  <contents> 
   <dir name="/"> 
@@ -43,12 +43,16 @@
     <file name="008.phpt" role="test" />
     <file name="009.phpt" role="test" />
     <file name="issue19.phpt" role="test" />
+    <file name="issue26.phpt" role="test" />
     <dir name="inis">
      <file name="a.ini" role="test" />
      <file name="a.ini.OLD" role="test" />
      <file name="b.ini" role="test" />
      <file name="d.ini" role="test" />
      <file name="e.ini" role="test" />
+     <dir name="issue26">
+      <file name="issue26.ini" role="test" />
+     </dir>
      <dir name="issue05">
       <file name="issue05.ini" role="test" />
      </dir>

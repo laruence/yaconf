@@ -280,7 +280,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 		php_yaconf_zval_persistent(value, &rv);
 		if (index && Z_STRLEN_P(index) > 0) {
 			if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(target), Z_STRVAL_P(index), Z_STRLEN_P(index))) == NULL) {
-				php_yaconf_symtable_update(Z_ARRVAL_P(pzval),
+				php_yaconf_symtable_update(Z_ARRVAL_P(target),
 						php_yaconf_str_persistent(Z_STRVAL_P(index), Z_STRLEN_P(index)), &rv);
 			} else {
 				if (Z_TYPE_P(pzval) == IS_ARRAY) {
