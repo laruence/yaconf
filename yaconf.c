@@ -473,7 +473,7 @@ PHP_GINIT_FUNCTION(yaconf)
  */
 PHP_MINIT_FUNCTION(yaconf)
 {
-	char *(*search_dir_names)[MAX_SEARCH_DIR_SIZE];
+	char * search_dir_names[MAX_SEARCH_DIR_SIZE];
 	int   search_dir_size=0;
 	char *cur_dir_name = NULL;
 
@@ -505,6 +505,13 @@ PHP_MINIT_FUNCTION(yaconf)
 
 		dirname_len = strlen(dirname);
 		search_dir_names[search_dir_size++] = estrdup(dirname);
+
+		PALLOC_HASHTABLE(ini_containers);
+		zend_hash_init(ini_containers, 32, NULL, NULL, 1);
+
+		PALLOC_HASHTABLE(parsed_ini_files);
+		zend_hash_init(parsed_ini_files, 32, NULL, NULL, 1);
+
 		while( search_dir_size > 0 ){
 			cur_dir_name = search_dir_names[--search_dir_size];
 
@@ -513,15 +520,8 @@ PHP_MINIT_FUNCTION(yaconf)
 				unsigned char c;
 				struct zend_stat sb;
 				zend_file_handle fh = {0};
-
-				PALLOC_HASHTABLE(ini_containers);
-				zend_hash_init(ini_containers, ndir, NULL, NULL, 1);
-
-				PALLOC_HASHTABLE(parsed_ini_files);
-				zend_hash_init(parsed_ini_files, ndir, NULL, NULL, 1);
-
 				for (i = 0; i < ndir; i++) {
-					if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
+					if (strcmp(namelist[i]->d_name, ".") == 0 || strcmp(namelist[i]->d_name, "..") == 0) {
 						free(namelist[i]);
 						continue;
 					}
@@ -530,6 +530,11 @@ PHP_MINIT_FUNCTION(yaconf)
 
 					if (ini_file_len < 0 || VCWD_STAT(ini_file, &sb) == 0) {
 						if (S_ISREG(sb.st_mode)) {
+							if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
+								free(namelist[i]);
+								continue;
+							}
+
 							yaconf_filenode node;
 							if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
 								fh.filename = ini_file;
@@ -552,7 +557,7 @@ PHP_MINIT_FUNCTION(yaconf)
 							node.filename = zend_string_init(ini_file+dirname_len+1, ini_file_len - dirname_len - 1 , 1);
 							node.mtime = sb.st_mtime;
 							zend_hash_update_mem(parsed_ini_files, node.filename, &node, sizeof(yaconf_filenode));
-						}else if(S_IFDIR(sb.st_mode) ){
+						}else if(S_ISDIR(sb.st_mode) ){
 							if(search_dir_size >= MAX_SEARCH_DIR_SIZE){
 								php_error(E_ERROR, "max dir size '%d'", search_dir_size);
 							}else{
@@ -590,6 +595,7 @@ PHP_RINIT_FUNCTION(yaconf)
 		return SUCCESS;
 	} else {
 		char *dirname;
+		int dirname_len =0;
 		struct zend_stat dir_sb = {0};
 
 		YACONF_G(last_check) = time(NULL);
@@ -604,7 +610,7 @@ PHP_RINIT_FUNCTION(yaconf)
 				struct dirent **namelist;
 				char *p, ini_file[MAXPATHLEN],ini_file_len=0;
 
-				char *(*search_dir_names)[MAX_SEARCH_DIR_SIZE];
+				char *search_dir_names[MAX_SEARCH_DIR_SIZE];
 				int   search_dir_size=0;
 				char *cur_dir_name = NULL;
 
@@ -622,21 +628,27 @@ PHP_RINIT_FUNCTION(yaconf)
 						yaconf_filenode *node = NULL;
 
 						for (i = 0; i < ndir; i++) {
-							zval *orig_ht = NULL;
-							if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
+							if (strcmp(namelist[i]->d_name, ".") == 0 || strcmp(namelist[i]->d_name, "..") == 0) {
 								free(namelist[i]);
 								continue;
 							}
+							
+							zval *orig_ht = NULL;
 
 							ini_file_len = snprintf(ini_file, MAXPATHLEN, "%s%c%s", cur_dir_name, DEFAULT_SLASH, namelist[i]->d_name);
 							if (ini_file_len < 0 || VCWD_STAT(ini_file, &sb) || !S_ISREG(sb.st_mode)) {
-								if(S_IFDIR(sb.st_mode) ){
+								if(S_ISDIR(sb.st_mode) ){
 									if(search_dir_size >= MAX_SEARCH_DIR_SIZE){
 										php_error(E_ERROR, "max dir size '%d'", search_dir_size);
 									}else{
 										search_dir_names[search_dir_size++] = estrdup(ini_file);
 									}
 								}
+								free(namelist[i]);
+								continue;
+							}
+
+							if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
 								free(namelist[i]);
 								continue;
 							}
