@@ -45,6 +45,9 @@ extern zend_module_entry yaconf_module_entry;
 #define YACONF_DEBUG(m) 
 #endif
 
+
+#define MAX_SEARCH_DIR_SIZE 10240
+
 ZEND_BEGIN_MODULE_GLOBALS(yaconf)
 	char *directory;
 	int   parse_err;

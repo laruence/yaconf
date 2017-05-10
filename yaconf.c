@@ -473,7 +473,12 @@ PHP_GINIT_FUNCTION(yaconf)
  */
 PHP_MINIT_FUNCTION(yaconf)
 {
+	char *(*search_dir_names)[MAX_SEARCH_DIR_SIZE];
+	int   search_dir_size=0;
+	char *cur_dir_name = NULL;
+
 	const char *dirname;
+	int dirname_len = 0;
 	size_t dirlen;
 	zend_class_entry ce;
 	struct zend_stat dir_sb = {0};
@@ -492,69 +497,83 @@ PHP_MINIT_FUNCTION(yaconf)
 		zval result;
 		int ndir;
 		struct dirent **namelist;
-		char *p, ini_file[MAXPATHLEN];
+		char *p, ini_file[MAXPATHLEN],ini_file_len=0;
 
 #ifndef ZTS
 		YACONF_G(directory_mtime) = dir_sb.st_mtime;
 #endif
 
-		if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
-			uint32_t i;
-			unsigned char c;
-			struct zend_stat sb;
-			zend_file_handle fh = {0};
+		dirname_len = strlen(dirname);
+		search_dir_names[search_dir_size++] = estrdup(dirname);
+		while( search_dir_size > 0 ){
+			cur_dir_name = search_dir_names[--search_dir_size];
 
-			PALLOC_HASHTABLE(ini_containers);
-			zend_hash_init(ini_containers, ndir, NULL, NULL, 1);
+			if ((ndir = php_scandir(cur_dir_name, &namelist, 0, php_alphasort)) > 0) {
+				uint32_t i;
+				unsigned char c;
+				struct zend_stat sb;
+				zend_file_handle fh = {0};
 
-			PALLOC_HASHTABLE(parsed_ini_files);
-			zend_hash_init(parsed_ini_files, ndir, NULL, NULL, 1);
+				PALLOC_HASHTABLE(ini_containers);
+				zend_hash_init(ini_containers, ndir, NULL, NULL, 1);
 
-			for (i = 0; i < ndir; i++) {
-				if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
-					free(namelist[i]);
-					continue;
-				}
+				PALLOC_HASHTABLE(parsed_ini_files);
+				zend_hash_init(parsed_ini_files, ndir, NULL, NULL, 1);
 
-				snprintf(ini_file, MAXPATHLEN, "%s%c%s", dirname, DEFAULT_SLASH, namelist[i]->d_name);
+				for (i = 0; i < ndir; i++) {
+					if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
+						free(namelist[i]);
+						continue;
+					}
 
-				if (VCWD_STAT(ini_file, &sb) == 0) {
-					if (S_ISREG(sb.st_mode)) {
-						yaconf_filenode node;
-						if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
-							fh.filename = ini_file;
-							fh.type = ZEND_HANDLE_FP;
-				            ZVAL_UNDEF(&active_ini_file_section);
-							YACONF_G(parse_err) = 0;
-							php_yaconf_hash_init(&result, 128);
-							if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
-									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
+					ini_file_len = snprintf(ini_file, MAXPATHLEN, "%s%c%s", cur_dir_name, DEFAULT_SLASH, namelist[i]->d_name);
+
+					if (ini_file_len < 0 || VCWD_STAT(ini_file, &sb) == 0) {
+						if (S_ISREG(sb.st_mode)) {
+							yaconf_filenode node;
+							if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
+								fh.filename = ini_file;
+								fh.type = ZEND_HANDLE_FP;
+					            ZVAL_UNDEF(&active_ini_file_section);
 								YACONF_G(parse_err) = 0;
-								php_yaconf_hash_destroy(Z_ARRVAL(result));
-								free(namelist[i]);
-								continue;
+								php_yaconf_hash_init(&result, 128);
+								if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
+										php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
+									YACONF_G(parse_err) = 0;
+									php_yaconf_hash_destroy(Z_ARRVAL(result));
+									free(namelist[i]);
+									continue;
+								}
+							}
+							
+							php_yaconf_symtable_update(ini_containers,
+									php_yaconf_str_persistent(ini_file+dirname_len+1, ini_file_len - dirname_len  - 1 - strlen(p) ), &result);
+
+							node.filename = zend_string_init(ini_file+dirname_len+1, ini_file_len - dirname_len - 1 , 1);
+							node.mtime = sb.st_mtime;
+							zend_hash_update_mem(parsed_ini_files, node.filename, &node, sizeof(yaconf_filenode));
+						}else if(S_IFDIR(sb.st_mode) ){
+							if(search_dir_size >= MAX_SEARCH_DIR_SIZE){
+								php_error(E_ERROR, "max dir size '%d'", search_dir_size);
+							}else{
+								search_dir_names[search_dir_size++] = estrdup(ini_file);
 							}
 						}
-						
-						php_yaconf_symtable_update(ini_containers,
-								php_yaconf_str_persistent(namelist[i]->d_name, p - namelist[i]->d_name), &result);
-
-						node.filename = zend_string_init(namelist[i]->d_name, strlen(namelist[i]->d_name), 1);
-						node.mtime = sb.st_mtime;
-						zend_hash_update_mem(parsed_ini_files, node.filename, &node, sizeof(yaconf_filenode));
+					} else {
+						php_error(E_ERROR, "Could not stat '%s'", ini_file);
 					}
-				} else {
-					php_error(E_ERROR, "Could not stat '%s'", ini_file);
+					free(namelist[i]);
 				}
-				free(namelist[i]);
+				free(namelist);
+			} else {
+				php_error(E_ERROR, "Couldn't opendir '%s'", dirname);
 			}
-#ifndef ZTS
-			YACONF_G(last_check) = time(NULL);
-#endif
-			free(namelist);
-		} else {
-			php_error(E_ERROR, "Couldn't opendir '%s'", dirname);
+
+			efree(cur_dir_name);
 		}
+		#ifndef ZTS
+			YACONF_G(last_check) = time(NULL);
+		#endif
 	}
 
 	return SUCCESS;
@@ -583,72 +602,90 @@ PHP_RINIT_FUNCTION(yaconf)
 				zval result;
 				int i, ndir;
 				struct dirent **namelist;
-				char *p, ini_file[MAXPATHLEN];
+				char *p, ini_file[MAXPATHLEN],ini_file_len=0;
+
+				char *(*search_dir_names)[MAX_SEARCH_DIR_SIZE];
+				int   search_dir_size=0;
+				char *cur_dir_name = NULL;
 
 				YACONF_G(directory_mtime) = dir_sb.st_mtime;
 
-				if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
-					zend_string *file_key;
-					struct zend_stat sb;
-					zend_file_handle fh = {0};
-					yaconf_filenode *node = NULL;
+				dirname_len = strlen(dirname);
+				search_dir_names[search_dir_size++] = estrdup(dirname);
+				while( search_dir_size > 0 ){
+					cur_dir_name = search_dir_names[--search_dir_size];
 
-					for (i = 0; i < ndir; i++) {
-						zval *orig_ht = NULL;
-						if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
-							free(namelist[i]);
-							continue;
-						}
+					if ((ndir = php_scandir(cur_dir_name, &namelist, 0, php_alphasort)) > 0) {
+						zend_string *file_key;
+						struct zend_stat sb;
+						zend_file_handle fh = {0};
+						yaconf_filenode *node = NULL;
 
-						snprintf(ini_file, MAXPATHLEN, "%s%c%s", dirname, DEFAULT_SLASH, namelist[i]->d_name);
-						if (VCWD_STAT(ini_file, &sb) || !S_ISREG(sb.st_mode)) {
-							free(namelist[i]);
-							continue;
-						}
-
-						if ((node = (yaconf_filenode*)zend_hash_str_find_ptr(parsed_ini_files, namelist[i]->d_name, strlen(namelist[i]->d_name))) == NULL) {
-							YACONF_DEBUG("new configure file found");
-						} else if (node->mtime == sb.st_mtime) {
-							free(namelist[i]);
-							continue;
-						}
-
-						if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
-							fh.filename = ini_file;
-							fh.type = ZEND_HANDLE_FP;
-							ZVAL_UNDEF(&active_ini_file_section);
-							YACONF_G(parse_err) = 0;
-							php_yaconf_hash_init(&result, 128);
-							if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
-									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
-								YACONF_G(parse_err) = 0;
-								php_yaconf_hash_destroy(Z_ARRVAL(result));
+						for (i = 0; i < ndir; i++) {
+							zval *orig_ht = NULL;
+							if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
 								free(namelist[i]);
 								continue;
 							}
-						}
+
+							ini_file_len = snprintf(ini_file, MAXPATHLEN, "%s%c%s", cur_dir_name, DEFAULT_SLASH, namelist[i]->d_name);
+							if (ini_file_len < 0 || VCWD_STAT(ini_file, &sb) || !S_ISREG(sb.st_mode)) {
+								if(S_IFDIR(sb.st_mode) ){
+									if(search_dir_size >= MAX_SEARCH_DIR_SIZE){
+										php_error(E_ERROR, "max dir size '%d'", search_dir_size);
+									}else{
+										search_dir_names[search_dir_size++] = estrdup(ini_file);
+									}
+								}
+								free(namelist[i]);
+								continue;
+							}
+
+							if ((node = (yaconf_filenode*)zend_hash_str_find_ptr(parsed_ini_files, ini_file+dirname_len+1, ini_file_len - dirname_len - 1)) == NULL) {
+								YACONF_DEBUG("new configure file found");
+							} else if (node->mtime == sb.st_mtime) {
+								free(namelist[i]);
+								continue;
+							}
+
+							if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
+								fh.filename = ini_file;
+								fh.type = ZEND_HANDLE_FP;
+								ZVAL_UNDEF(&active_ini_file_section);
+								YACONF_G(parse_err) = 0;
+								php_yaconf_hash_init(&result, 128);
+								if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
+										php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
+									YACONF_G(parse_err) = 0;
+									php_yaconf_hash_destroy(Z_ARRVAL(result));
+									free(namelist[i]);
+									continue;
+								}
+							}
 
 
-						file_key = php_yaconf_str_persistent(namelist[i]->d_name, p - namelist[i]->d_name);
-						if ((orig_ht = zend_symtable_find(ini_containers, file_key)) != NULL) {
-							php_yaconf_hash_destroy(Z_ARRVAL_P(orig_ht));
-							ZVAL_COPY_VALUE(orig_ht, &result);
-							free(file_key);
-						} else {
-							php_yaconf_symtable_update(ini_containers, file_key, &result);
-						}
+							file_key = php_yaconf_str_persistent(ini_file+dirname_len+1, ini_file_len - dirname_len  - 1 - strlen(p));
+							if ((orig_ht = zend_symtable_find(ini_containers, file_key)) != NULL) {
+								php_yaconf_hash_destroy(Z_ARRVAL_P(orig_ht));
+								ZVAL_COPY_VALUE(orig_ht, &result);
+								free(file_key);
+							} else {
+								php_yaconf_symtable_update(ini_containers, file_key, &result);
+							}
 
-						if (node) {
-							node->mtime = sb.st_mtime;
-						} else {
-							yaconf_filenode n = {0};
-							n.filename = zend_string_init(namelist[i]->d_name, strlen(namelist[i]->d_name), 1);
-							n.mtime = sb.st_mtime;
-							zend_hash_update_mem(parsed_ini_files, n.filename, &n, sizeof(yaconf_filenode));
+							if (node) {
+								node->mtime = sb.st_mtime;
+							} else {
+								yaconf_filenode n = {0};
+								n.filename = zend_string_init(ini_file+dirname_len+1, ini_file_len - dirname_len - 1, 1);
+								n.mtime = sb.st_mtime;
+								zend_hash_update_mem(parsed_ini_files, n.filename, &n, sizeof(yaconf_filenode));
+							}
+							free(namelist[i]);
 						}
-						free(namelist[i]);
+						free(namelist);
 					}
-					free(namelist);
+					efree(cur_dir_name);
 				}
 				return SUCCESS;
 			}
