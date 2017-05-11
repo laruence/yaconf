@@ -3,7 +3,7 @@ Check for Yaconf
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.directory={PWD}/inis/
+yaconf.directory={PWD}/inis/data
 --FILE--
 <?php 
 print_r(Yaconf::get("a"));
@@ -11,6 +11,7 @@ print_r(Yaconf::get("b"));
 var_dump(Yaconf::get("c"));
 var_dump(Yaconf::get("c", 1));
 print_r(Yaconf::get("d"));
+print_r(Yaconf::get("common/a"));
 ?>
 --EXPECTF--
 Array
