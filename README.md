@@ -43,6 +43,11 @@ $ make && make install
   In which interval Yaconf will detect ini file's change(by directory's mtime),
   if it is set to zero, you have to restart php to reloading configurations.
 ```
+- yaconf.check_type
+```
+  if it is set to zero (default)  will detect ini file's change by directory's mtime , 
+  otherwise will detect each file's mtime. 
+```
 
 ### APIs
 
