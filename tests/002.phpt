@@ -93,3 +93,24 @@ Array
         )
 
 )
+Array
+(
+    [common] => Array
+        (
+            [domain] => Array
+                (
+                    [allow] => Array
+                        (
+                            [0] => 127.0.0.1
+                        )
+
+                    [deny] => Array
+                        (
+                            [0] => 192.168.1.0
+                        )
+
+                )
+
+        )
+
+)
