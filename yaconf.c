@@ -456,6 +456,7 @@ zend_function_entry yaconf_methods[] = {
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("yaconf.directory", "", PHP_INI_SYSTEM, OnUpdateString, directory, zend_yaconf_globals, yaconf_globals)
 #ifndef ZTS
+	STD_PHP_INI_ENTRY("yaconf.check_type", "0", PHP_INI_SYSTEM, OnUpdateLong, check_type, zend_yaconf_globals, yaconf_globals)
 	STD_PHP_INI_ENTRY("yaconf.check_delay", "300", PHP_INI_SYSTEM, OnUpdateLong, check_delay, zend_yaconf_globals, yaconf_globals)
 #endif
 PHP_INI_END()
@@ -559,7 +560,7 @@ PHP_MINIT_FUNCTION(yaconf)
 							zend_hash_update_mem(parsed_ini_files, node.filename, &node, sizeof(yaconf_filenode));
 						}else if(S_ISDIR(sb.st_mode) ){
 							if(search_dir_size >= MAX_SEARCH_DIR_SIZE){
-								php_error(E_ERROR, "max dir size '%d'", search_dir_size);
+								php_error(E_WARNING, "max dir size '%d'", search_dir_size);
 							}else{
 								search_dir_names[search_dir_size++] = estrdup(ini_file);
 							}
@@ -601,7 +602,7 @@ PHP_RINIT_FUNCTION(yaconf)
 		YACONF_G(last_check) = time(NULL);
 
 		if ((dirname = YACONF_G(directory)) && !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)) {
-			if (dir_sb.st_mtime == YACONF_G(directory_mtime)) {
+			if (YACONF_G(check_type) == 0 && dir_sb.st_mtime == YACONF_G(directory_mtime) ) {
 				YACONF_DEBUG("config directory is not modefied");
 				return SUCCESS;
 			} else {
@@ -639,7 +640,7 @@ PHP_RINIT_FUNCTION(yaconf)
 							if (ini_file_len < 0 || VCWD_STAT(ini_file, &sb) || !S_ISREG(sb.st_mode)) {
 								if(S_ISDIR(sb.st_mode) ){
 									if(search_dir_size >= MAX_SEARCH_DIR_SIZE){
-										php_error(E_ERROR, "max dir size '%d'", search_dir_size);
+										php_error(E_WARNING, "max dir size '%d'", search_dir_size);
 									}else{
 										search_dir_names[search_dir_size++] = estrdup(ini_file);
 									}

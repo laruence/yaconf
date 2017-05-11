@@ -52,6 +52,7 @@ ZEND_BEGIN_MODULE_GLOBALS(yaconf)
 	char *directory;
 	int   parse_err;
 #ifndef ZTS
+  long   check_type;
 	long   check_delay;
 	time_t last_check;
 	time_t directory_mtime;
