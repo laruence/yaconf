@@ -15,6 +15,7 @@ Yaconf is a configurations container, it parses ini files, and store the result 
 - Zero-copy while accesses configurations
 - Support sections, sections inheritance
 - Configurations reload automatically after changed
+- Support multi-level directory 
 
 ### Install
 
