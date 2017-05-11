@@ -157,6 +157,8 @@ array(2) {
 }
 */
 ````
+Children section has inherited values in base sections, and children were able to override the values they want.
+
 
 ##### test/foo.ini
 Now let's see the ini in the directories :
@@ -181,5 +183,3 @@ array(2) {
 }
 */
 ````
-
-Children section has inherited values in base sections, and children were able to override the values they want.
