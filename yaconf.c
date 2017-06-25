@@ -92,7 +92,11 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
 	GC_REFCOUNT(ht) = 2;
 	ZVAL_ARR(zv, ht);
+#if PHP_VERSION_ID < 70200
 	Z_TYPE_FLAGS_P(zv) = IS_TYPE_IMMUTABLE;
+#else
+	Z_TYPE_FLAGS_P(zv) = IS_TYPE_COPYABLE;
+#endif
 } 
 /* }}} */
 
