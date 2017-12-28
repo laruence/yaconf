@@ -88,6 +88,7 @@ ZEND_GET_MODULE(yaconf)
 static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	HashTable *ht;
 	PALLOC_HASHTABLE(ht);
+	/* ZVAL_PTR_DTOR is necessary in case that this array be cloned */
 	zend_hash_init(ht, size, NULL, ZVAL_PTR_DTOR, 1);
 	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
 	GC_REFCOUNT(ht) = 2;
