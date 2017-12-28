@@ -92,7 +92,12 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	zend_hash_init(ht, size, NULL, ZVAL_PTR_DTOR, 1);
 	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
 	GC_FLAGS(ht) |= HASH_FLAG_STATIC_KEYS;
+#if PHP_VERSION_ID >= 70200
+	HT_ALLOW_COW_VIOLATION(ht);
+#endif
 	GC_FLAGS(ht) &= ~HASH_FLAG_APPLY_PROTECTION;
+#if PHP_VERSION_ID < 70200
+#endif
 	GC_REFCOUNT(ht) = 2;
 	ZVAL_ARR(zv, ht);
 #if PHP_VERSION_ID < 70200
