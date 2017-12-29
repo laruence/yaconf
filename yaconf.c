@@ -41,9 +41,6 @@ typedef struct _yaconf_filenode {
 
 #define PALLOC_HASHTABLE(ht)   do {                                                       \
 	(ht) = (HashTable*)pemalloc(sizeof(HashTable), 1);                                    \
-	if ((ht) == NULL) {                                                                   \
-		zend_error(E_ERROR, "Cannot allocate persistent HashTable, out enough memory?");  \
-	}                                                                                     \
 } while(0)
 
 /* {{{ ARG_INFO
