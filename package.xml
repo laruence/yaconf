@@ -10,11 +10,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2017-07-27</date>
- <time>18:00:00</time>
+ <date>2017-12-31</date>
+ <time>12:20:00</time>
  <version>
-  <release>1.0.6</release>
-  <api>1.0.6</api>
+  <release>1.0.7</release>
+  <api>1.0.7</api>
  </version>
  <stability>
   <release>stable</release>
@@ -22,7 +22,8 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Fixed PHP-7.2 Compatiblity
+  - Fixed PHP-7.2 build
+  - Fixed HT flags
  </notes>
  <contents> 
   <dir name="/"> 
@@ -88,6 +89,23 @@
  <extsrcrelease />
  <changelog> 
   <release> 
+   <date>2017-12-31</date> 
+   <version> 
+    <release>1.0.7</release> 
+    <api>1.0.7</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Fixed PHP-7.2 build
+    - Fixed HT flags
+   </notes> 
+  </release> 
+
+  <release> 
    <date>2017-07-27</date> 
    <version> 
     <release>1.0.6</release> 
@@ -102,7 +120,6 @@
     - Fixed PHP-7.2 Compatiblity
    </notes> 
   </release> 
-
   <release> 
    <date>2017-04-27</date> 
    <version> 
