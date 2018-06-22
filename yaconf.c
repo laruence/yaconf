@@ -158,10 +158,11 @@ static zend_string* php_yaconf_str_persistent(char *str, size_t len) /* {{{ */ {
 		zend_error(E_ERROR, "Cannot allocate string, not enough memory?");
 	}
 	key->h = zend_string_hash_val(key);
-#if PHP_VERSION_ID < 70200
-#define GC_FLAGS_SHIFT 8
+#if PHP_VERSION_ID < 70300
+	GC_FLAGS(key) |= (IS_STR_INTERNED | IS_STR_PERMANENT);
+#else
+	GC_ADD_FLAGS(key, IS_STR_INTERNED | IS_STR_PERMANENT);
 #endif
-	GC_TYPE_INFO(key) |= (IS_STR_INTERNED | IS_STR_PERMANENT << GC_FLAGS_SHIFT);
 	return key;
 }
 /* }}} */
