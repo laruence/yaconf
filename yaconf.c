@@ -47,6 +47,7 @@ typedef struct _yaconf_filenode {
  */
 ZEND_BEGIN_ARG_INFO_EX(php_yaconf_get_arginfo, 0, 0, 1)
 	ZEND_ARG_INFO(0, name)
+	ZEND_ARG_INFO(0, default)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(php_yaconf_has_arginfo, 0, 0, 1)
@@ -87,20 +88,31 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	PALLOC_HASHTABLE(ht);
 	/* ZVAL_PTR_DTOR is necessary in case that this array be cloned */
 	zend_hash_init(ht, size, NULL, ZVAL_PTR_DTOR, 1);
-	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
-	GC_FLAGS(ht) |= HASH_FLAG_STATIC_KEYS;
+#if PHP_VERSION_ID < 70300
+	GC_FLAGS(ht) |= (IS_ARRAY_IMMUTABLE | HASH_FLAG_STATIC_KEYS);
+#else
+	HT_FLAGS(ht) |= (IS_ARRAY_IMMUTABLE | HASH_FLAG_STATIC_KEYS);
+#endif
 #if PHP_VERSION_ID >= 70200
 	HT_ALLOW_COW_VIOLATION(ht);
 #endif
+#if PHP_VERSION_ID < 70300
 	GC_FLAGS(ht) &= ~HASH_FLAG_APPLY_PROTECTION;
-#if PHP_VERSION_ID < 70200
 #endif
+
+#if PHP_VERSION_ID < 70300
 	GC_REFCOUNT(ht) = 2;
+#else
+	GC_SET_REFCOUNT(ht, 2);
+#endif
+
 	ZVAL_ARR(zv, ht);
 #if PHP_VERSION_ID < 70200
 	Z_TYPE_FLAGS_P(zv) = IS_TYPE_IMMUTABLE;
-#else
+#elif PHP_VERSION_ID < 70300
 	Z_TYPE_FLAGS_P(zv) = IS_TYPE_COPYABLE;
+#else
+	Z_TYPE_FLAGS_P(zv) = 0;
 #endif
 } 
 /* }}} */
@@ -146,7 +158,10 @@ static zend_string* php_yaconf_str_persistent(char *str, size_t len) /* {{{ */ {
 		zend_error(E_ERROR, "Cannot allocate string, not enough memory?");
 	}
 	key->h = zend_string_hash_val(key);
-	GC_FLAGS(key) |= IS_STR_INTERNED | IS_STR_PERMANENT;
+#if PHP_VERSION_ID < 70200
+#define GC_FLAGS_SHIFT 8
+#endif
+	GC_TYPE_INFO(key) |= (IS_STR_INTERNED | IS_STR_PERMANENT << GC_FLAGS_SHIFT);
 	return key;
 }
 /* }}} */
@@ -168,7 +183,9 @@ static void php_yaconf_hash_copy(HashTable *target, HashTable *source) /* {{{ */
 
 static void php_yaconf_zval_persistent(zval *zv, zval *rv) /* {{{ */ {
 	switch (Z_TYPE_P(zv)) {
+#if PHP_VERSION_ID < 70300
 		case IS_CONSTANT:
+#endif
 		case IS_STRING:
 			ZVAL_INTERNED_STR(rv, php_yaconf_str_persistent(Z_STRVAL_P(zv), Z_STRLEN_P(zv)));
 			break;
