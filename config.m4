@@ -1,4 +1,3 @@
-dnl $Id$
 dnl config.m4 for extension yaconf
 
 PHP_ARG_ENABLE(yaconf, whether to enable yaconf support,
