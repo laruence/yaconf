@@ -121,7 +121,11 @@ static void php_yaconf_hash_destroy(HashTable *ht) /* {{{ */ {
 	zend_string *key;
 	zval *element;
 
+#if PHP_VERSION_ID < 70400
 	if (((ht)->u.flags & HASH_FLAG_INITIALIZED)) {
+#else
+	if (HT_IS_INITIALIZED(ht)) {
+#endif
 		ZEND_HASH_FOREACH_STR_KEY_VAL(ht, key, element) {
 			if (key) {
 				free(key);
