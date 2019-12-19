@@ -159,7 +159,7 @@ static zval* php_yaconf_symtable_update(HashTable *ht, zend_string *key, zval *z
 static zend_string* php_yaconf_str_persistent(char *str, size_t len) /* {{{ */ {
 	zend_string *key = zend_string_init(str, len, 1);
 	if (key == NULL) {
-		zend_error(E_ERROR, "Cannot allocate string, not enough memory?");
+		zend_error(E_ERROR, "fail to allocate memory for string, no enough memory?");
 	}
 	key->h = zend_string_hash_val(key);
 #if PHP_VERSION_ID < 70300
@@ -598,7 +598,7 @@ PHP_MINIT_FUNCTION(yaconf)
 PHP_RINIT_FUNCTION(yaconf)
 {
 	if (YACONF_G(check_delay) && (time(NULL) - YACONF_G(last_check) < YACONF_G(check_delay))) {
-		YACONF_DEBUG("config check delay doesn't execceed, ignore");
+		YACONF_DEBUG("config check delay doesn't execeed, ignore");
 		return SUCCESS;
 	} else {
 		char *dirname;
