@@ -45,10 +45,14 @@ extern zend_module_entry yaconf_module_entry;
 #define YACONF_DEBUG(m) 
 #endif
 
+
+#define MAX_SEARCH_DIR_SIZE 10240
+
 ZEND_BEGIN_MODULE_GLOBALS(yaconf)
 	char *directory;
 	int   parse_err;
 #ifndef ZTS
+  long   check_type;
 	long   check_delay;
 	time_t last_check;
 	time_t directory_mtime;

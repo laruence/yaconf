@@ -3,7 +3,7 @@ ISSUE #19 Memory leak on foreach and reference
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.directory={PWD}/inis/
+yaconf.directory={PWD}/inis/data
 --FILE--
 <?php 
 $i = 0;

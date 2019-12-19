@@ -2,6 +2,8 @@
 Check for Yaconf presence
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
+--INI--
+yaconf.directory={PWD}/inis/data
 --FILE--
 <?php 
 echo "yaconf extension is available";

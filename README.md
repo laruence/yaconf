@@ -15,6 +15,7 @@ Yaconf is a configurations container, it parses ini files, and store the result 
 - Zero-copy while accesses configurations
 - Support sections, sections inheritance
 - Configurations reload automatically after changed
+- Support multi-level directory 
 
 ### Install
 
@@ -41,6 +42,11 @@ $ make && make install
 ```
   In which interval Yaconf will detect ini file's change(by directory's mtime),
   if it is set to zero, you have to restart php to reloading configurations.
+```
+- yaconf.check_type
+```
+  if it is set to zero (default)  will detect ini file's change by directory's mtime , 
+  otherwise will detect each file's mtime. 
 ```
 
 ### APIs
@@ -80,6 +86,18 @@ children="NULL"
 [children:base]
 children="set"
 ````
+
+and  test/foo.ini( fullpath is : /tmp/yaconf/test/foo.ini)
+````ini
+name="test/yaconf"
+year=2015
+features[]="fast"
+features.1="light"
+features.plus="zero-copy"
+features.constant=PHP_VERSION
+features.env=${HOME}
+````
+
 #### Run
 lets access the configurations
 
@@ -145,5 +163,29 @@ array(2) {
 }
 */
 ````
-
 Children section has inherited values in base sections, and children were able to override the values they want.
+
+
+##### test/foo.ini
+Now let's see the ini in the directories :
+````php
+php7 -r 'var_dump(Yaconf::get("test/foo"));'
+/*
+array(2) {
+  ["base"]=>
+  array(2) {
+    ["parent"]=>
+    string(6) "test/yaconf"
+    ["children"]=>
+    string(4) "NULL"
+  }
+  ["children"]=>
+  array(2) {
+    ["parent"]=>
+    string(6) "yaconf"
+    ["children"]=>
+    string(3) "set"
+  }
+}
+*/
+````
