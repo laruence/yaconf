@@ -93,6 +93,9 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 #else
 	HT_FLAGS(ht) |= (IS_ARRAY_IMMUTABLE | HASH_FLAG_STATIC_KEYS);
 #endif
+#if PHP_VERSION_ID >= 70400
+	zend_hash_real_init(ht, 0);
+#endif
 #if PHP_VERSION_ID >= 70200
 	HT_ALLOW_COW_VIOLATION(ht);
 #endif
