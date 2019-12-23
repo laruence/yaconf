@@ -477,10 +477,44 @@ PHP_METHOD(yaconf, has) {
 }
 /* }}} */
 
+/** {{{ proto public Yaconf::__debug_info(string $name)
+ */
+PHP_METHOD(yaconf, __debug_info) {
+	zend_string *name;
+	zval *val;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S", &name) == FAILURE) {
+		return;
+	} 
+
+	val = php_yaconf_get(name);
+	if (val) {
+		zval zv;
+		zend_array *arr;
+		char *address;
+		size_t len;
+		array_init(return_value);
+		ZVAL_STR(&zv, name);
+		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "key", sizeof("key") - 1, &zv);
+		Z_TRY_ADDREF(zv);
+		len = spprintf(&address, 0, "%p", val); /* can not use zend_strpprintf as it only exported after PHP-7.2 */
+		ZVAL_STR(&zv, zend_string_init(address, len, 0)); 
+		efree(address);
+		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "address", sizeof("address") - 1, &zv);
+		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "val", sizeof("val") - 1, val);
+		Z_TRY_ADDREF_P(val);
+		return;
+	}
+
+	RETURN_NULL();
+}
+/* }}} */
+
 /* {{{  yaconf_methods */
 zend_function_entry yaconf_methods[] = {
 	PHP_ME(yaconf, get, php_yaconf_get_arginfo, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
 	PHP_ME(yaconf, has, php_yaconf_has_arginfo, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+	PHP_ME(yaconf, __debug_info, php_yaconf_has_arginfo, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
 	{NULL, NULL, NULL}
 };
 /* }}} */
