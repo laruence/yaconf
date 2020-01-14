@@ -45,8 +45,10 @@ $ make && make install
 
 ### APIs
 
-#### mixed Yaconf::get(string $name, mixed $default = NULL)
-#### bool  Yaconf::has(string $name)
+````php
+mixed Yaconf::get(string $name, mixed $default = NULL)
+bool  Yaconf::has(string $name)
+````
 
 ### Example
 
