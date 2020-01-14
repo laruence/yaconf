@@ -65,13 +65,13 @@ Assuming there are two files in /tmp/yaconf
 
 foo.ini
 ````ini
-name="yaconf"
-year=2015
-features[]="fast"
+name="yaconf"     ;string
+year=2015         ;number
+features[]="fast"  ;map
 features.1="light"
 features.plus="zero-copy"
-features.constant=PHP_VERSION
-features.env=${HOME}
+features.constant=PHP_VERSION  ;PHP constants
+features.env=${HOME}  ;Enviorment variables
 ````
 and bar.ini
 ````ini
@@ -79,7 +79,7 @@ and bar.ini
 parent="yaconf"
 children="NULL"
 
-[children:base]
+[children:base]   ; inherit from section "base"
 children="set"
 ````
 #### Run
