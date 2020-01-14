@@ -65,13 +65,13 @@ Assuming there are two files in /tmp/yaconf
 
 foo.ini
 ````ini
-name="yaconf"     ;string
-year=2015         ;number
-features[]="fast"  ;map
+name="yaconf"                  ;string
+year=2015                      ;number
+features[]="fast"              ;map
 features.1="light"
 features.plus="zero-copy"
 features.constant=PHP_VERSION  ;PHP constants
-features.env=${HOME}  ;Enviorment variables
+features.env=${HOME}           ;Enviorment variables
 ````
 and bar.ini
 ````ini
@@ -79,11 +79,11 @@ and bar.ini
 parent="yaconf"
 children="NULL"
 
-[children:base]   ; inherit from section "base"
+[children:base]               ;inherit from section "base"
 children="set"
 ````
 #### Run
-lets access the configurations
+lets retrieve the configurations from Yaconf
 
 ##### foo.ini
 ````php
@@ -148,4 +148,4 @@ array(2) {
 */
 ````
 
-Children section has inherited values in base sections, and children were able to override the values they want.
+Children section has inherited values in base sections, and children is able to override the values they want.
