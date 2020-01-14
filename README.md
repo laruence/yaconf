@@ -8,7 +8,7 @@ A PHP Persistent Configurations Container
 
 ### Introduction
 
-Yaconf is a configurations container, it parses ini files, and store the result in PHP when PHP is started.
+Yaconf is a configurations container, it parses ini files, store the result in PHP when PHP is started and the configurations live in the whole PHP lifecycle, which makes it very fast.
 
 ### Features
 - Fast, Light
