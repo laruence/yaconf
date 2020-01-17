@@ -8,7 +8,7 @@ A PHP Persistent Configurations Container
 
 ### Introduction
 
-Yaconf is a configurations container, it parses ini files, and store the result in PHP when PHP is started.
+Yaconf is a configurations container, it parses ini files, store the result in PHP when PHP is started, configurations live in the whole PHP lifecycle, which makes it very fast.
 
 ### Features
 - Fast, Light
@@ -45,8 +45,10 @@ $ make && make install
 
 ### APIs
 
-#### mixed Yaconf::get(string $name, mixed $default = NULL)
-#### bool  Yaconf::has(string $name)
+````php
+mixed Yaconf::get(string $name, mixed $default = NULL)
+bool  Yaconf::has(string $name)
+````
 
 ### Example
 
@@ -63,13 +65,13 @@ Assuming there are two files in /tmp/yaconf
 
 foo.ini
 ````ini
-name="yaconf"
-year=2015
-features[]="fast"
+name="yaconf"                  ;string
+year=2015                      ;number
+features[]="fast"              ;map
 features.1="light"
 features.plus="zero-copy"
-features.constant=PHP_VERSION
-features.env=${HOME}
+features.constant=PHP_VERSION  ;PHP constants
+features.env=${HOME}           ;Enviorment variables
 ````
 and bar.ini
 ````ini
@@ -77,11 +79,11 @@ and bar.ini
 parent="yaconf"
 children="NULL"
 
-[children:base]
+[children:base]               ;inherit from section "base"
 children="set"
 ````
 #### Run
-lets access the configurations
+lets retrieve the configurations from Yaconf
 
 ##### foo.ini
 ````php
@@ -146,4 +148,4 @@ array(2) {
 */
 ````
 
-Children section has inherited values in base sections, and children were able to override the values they want.
+Children section has inherited values in base sections, and children is able to override the values they want.
