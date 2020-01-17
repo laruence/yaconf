@@ -8,11 +8,17 @@ yaconf.directory={PWD}/inis/
 <?php 
 var_dump(Yaconf::get("d.bar.application.test"));
 var_dump(Yaconf::has("d.bar.application"));
+var_dump(Yaconf::has("d.bar.application.."));
+var_dump(Yaconf::has(".d.bar..application"));
+var_dump(Yaconf::has("d.bar..application"));
 var_dump(Yaconf::has("d.bar.application.nonexists"));
 var_dump(Yaconf::get("d.bar.application.nonexists", "default"));
 ?>
 --EXPECTF--
 string(1) "1"
 bool(true)
+bool(false)
+bool(false)
+bool(false)
 bool(false)
 string(7) "default"
