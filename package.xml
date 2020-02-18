@@ -47,11 +47,31 @@
     <file name="issue19.phpt" role="test" />
     <file name="issue26.phpt" role="test" />
     <dir name="inis">
-     <file name="a.ini" role="test" />
-     <file name="a.ini.OLD" role="test" />
-     <file name="b.ini" role="test" />
-     <file name="d.ini" role="test" />
-     <file name="e.ini" role="test" />
+     <dir name="002">
+      <file name="basic.ini" role="test" />
+     </dir>
+     <dir name="003">
+      <file name="section.ini" role="test" />
+     </dir>
+     <dir name="004">
+      <file name="a.ini" role="test" />
+      <file name="b.ini" role="test" />
+      <file name="d.ini" role="test" />
+      <file name="c.ini" role="test" />
+      <file name="a.ini.OLD" role="test" />
+     </dir>
+     <dir name="005">
+      <file name="a.ini" role="test" />
+     </dir>
+     <dir name="006">
+      <file name="a.ini" role="test" />
+     </dir>
+     <dir name="009">
+      <file name="a.ini" role="test" />
+     </dir>
+     <dir name="010">
+      <file name="a.ini" role="test" />
+     </dir>
      <dir name="issue26">
       <file name="issue26.ini" role="test" />
      </dir>
@@ -60,17 +80,6 @@
      </dir>
      <dir name="issue14">
       <file name="issue14.ini" role="test" />
-     </dir>
-     <dir name="err">
-      <dir name="key">
-       <file name="a.ini" role="test" />
-      </dir>
-      <dir name="section">
-       <file name="a.ini" role="test" />
-      </dir>
-      <dir name="err">
-       <file name="a.ini" role="test" />
-      </dir>
      </dir>
     </dir>
    </dir>
