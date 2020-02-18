@@ -3,7 +3,7 @@ Check for Yaconf with long key name
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.directory={PWD}/inis/err/key
+yaconf.directory={PWD}/inis/005
 --FILE--
 <?php 
 var_dump(Yaconf::has("a"));

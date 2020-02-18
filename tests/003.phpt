@@ -3,16 +3,16 @@ Check for Yaconf
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.directory={PWD}/inis/
+yaconf.directory={PWD}/inis/003/
 --FILE--
 <?php 
-var_dump(Yaconf::get("d.bar.application.test"));
-var_dump(Yaconf::has("d.bar.application"));
-var_dump(Yaconf::has("d.bar.application.."));
-var_dump(Yaconf::has(".d.bar..application"));
-var_dump(Yaconf::has("d.bar..application"));
-var_dump(Yaconf::has("d.bar.application.nonexists"));
-var_dump(Yaconf::get("d.bar.application.nonexists", "default"));
+var_dump(Yaconf::get("section.bar.application.test"));
+var_dump(Yaconf::has("section.bar.application"));
+var_dump(Yaconf::has("section.bar.application.."));
+var_dump(Yaconf::has(".section.bar..application"));
+var_dump(Yaconf::has("section.bar..application"));
+var_dump(Yaconf::has("section.bar.application.nonexists"));
+var_dump(Yaconf::get("section.bar.application.nonexists", "default"));
 ?>
 --EXPECTF--
 string(1) "1"

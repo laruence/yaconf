@@ -3,7 +3,7 @@ Check for Yaconf with section
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.directory={PWD}/inis/err/section
+yaconf.directory={PWD}/inis/006
 --FILE--
 <?php 
 var_dump(Yaconf::has("a"));
