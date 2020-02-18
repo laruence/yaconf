@@ -367,7 +367,7 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 					while (*(section) == ' ' || *(section) == ':') {
 						*(section++) = '\0';
 					}
-					if ((parent = zend_symtable_str_find(Z_ARRVAL_P(arr), section, strlen(section)))) {
+					if ((parent = zend_symtable_str_find(Z_ARRVAL_P(arr), section, strlen(section))) && Z_TYPE_P(parent) == IS_ARRAY) {
 						php_yaconf_hash_copy(Z_ARRVAL(active_ini_file_section), Z_ARRVAL_P(parent));
 					}
 				} while ((section = strrchr(seg, ':')));
@@ -379,7 +379,7 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 				*(section--) = '\0';
 			}
 
-			if ((parent = zend_symtable_str_find(Z_ARRVAL_P(arr), seg, strlen(seg)))) {
+			if ((parent = zend_symtable_str_find(Z_ARRVAL_P(arr), seg, strlen(seg))) && Z_TYPE_P(parent) == IS_ARRAY) {
 				php_yaconf_hash_copy(Z_ARRVAL(active_ini_file_section), Z_ARRVAL_P(parent));
 			}
 		} 
