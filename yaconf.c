@@ -328,20 +328,30 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 			char *delim;
 
 			if (UNEXPECTED(delim = memchr(Z_STRVAL_P(key), '.', Z_STRLEN_P(key)))) {
+				zval *parent;
 				char *seg = Z_STRVAL_P(key);
 				size_t len = Z_STRLEN_P(key);
 
-				pzval = php_yaconf_parse_nesting_key(target, &seg, &len, delim);
-				if (pzval == NULL) {
+				parent = php_yaconf_parse_nesting_key(target, &seg, &len, delim);
+				if (parent == NULL) {
 					return;
 				}
 
-				if (Z_TYPE_P(pzval) != IS_ARRAY) {
-					php_yaconf_hash_init(pzval, 8);
+				if (Z_TYPE_P(parent) != IS_ARRAY) {
+					php_yaconf_hash_init(parent, 8);
+					php_yaconf_hash_init(&rv, 8);
+					pzval = php_yaconf_symtable_update(Z_ARRVAL_P(parent), seg, len, &rv);
+				} else {
+					if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(parent), seg, len))) {
+						if (Z_TYPE_P(pzval) != IS_ARRAY) {
+							php_yaconf_hash_init(&rv, 8);
+							pzval = php_yaconf_symtable_update(Z_ARRVAL_P(pzval), seg, len, &rv);
+						}
+					} else {
+						php_yaconf_hash_init(&rv, 8);
+						pzval = php_yaconf_symtable_update(Z_ARRVAL_P(parent), seg, len, &rv);
+					}
 				}
-				
-				php_yaconf_hash_init(&rv, 8);
-				pzval = php_yaconf_symtable_update(Z_ARRVAL_P(pzval), seg, len, &rv);
 			} else {
 				if ((pzval = zend_symtable_str_find(target, Z_STRVAL_P(key), Z_STRLEN_P(key)))) {
 					if (Z_TYPE_P(pzval) != IS_ARRAY) {
