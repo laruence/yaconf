@@ -345,7 +345,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 					if ((pzval = zend_symtable_str_find(Z_ARRVAL_P(parent), seg, len))) {
 						if (Z_TYPE_P(pzval) != IS_ARRAY) {
 							php_yaconf_hash_init(&rv, 8);
-							pzval = php_yaconf_symtable_update(Z_ARRVAL_P(pzval), seg, len, &rv);
+							pzval = php_yaconf_symtable_update(Z_ARRVAL_P(parent), seg, len, &rv);
 						}
 					} else {
 						php_yaconf_hash_init(&rv, 8);
