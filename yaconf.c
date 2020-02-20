@@ -591,7 +591,7 @@ PHP_MINIT_FUNCTION(yaconf)
 		if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
 			uint32_t i;
 			zend_stat_t sb;
-			zend_file_handle fh = {0};
+			zend_file_handle fh = {{0}, 0};
 
 			PALLOC_HASHTABLE(ini_containers);
 			zend_hash_init(ini_containers, ndir, NULL, NULL, 1);
@@ -677,7 +677,7 @@ PHP_RINIT_FUNCTION(yaconf)
 
 				if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
 					zend_stat_t sb;
-					zend_file_handle fh = {0};
+					zend_file_handle fh = {{0}, 0};
 					yaconf_filenode *node = NULL;
 
 					for (i = 0; i < ndir; i++) {
