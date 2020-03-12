@@ -10,11 +10,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2019-12-23</date>
- <time>15:13:00</time>
+ <date>2020-03-12</date>
+ <time>14:10:00</time>
  <version>
-  <release>1.0.8</release>
-  <api>1.0.8</api>
+  <release>1.1.0</release>
+  <api>1.1.0</api>
  </version>
  <stability>
   <release>stable</release>
@@ -22,8 +22,8 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Fixed PHP-7.4 build
-  - Added Yaconf::__debug_info method for debug purpose
+   - Refactor Yaconf for performance
+   - Around 40% time reduced according to benchmark
  </notes>
  <contents> 
   <dir name="/"> 
@@ -99,6 +99,23 @@
  <extsrcrelease />
  <changelog> 
   <release> 
+   <date>2020-03-12</date> 
+   <version> 
+    <release>1.1.0</release> 
+    <api>1.1.0</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Refactor Yaconf for performance
+    - Around 40% time reduced according to benchmark
+   </notes> 
+  </release> 
+
+  <release> 
    <date>2019-12-23</date> 
    <version> 
     <release>1.0.8</release> 
@@ -114,7 +131,6 @@
     - Added Yaconf::__debug_info method for debug purpose
    </notes> 
   </release> 
-
   <release> 
    <date>2017-12-31</date> 
    <version> 
