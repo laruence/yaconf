@@ -493,13 +493,10 @@ PHP_METHOD(yaconf, get) {
 */
 PHP_METHOD(yaconf, has) {
 	zend_string *name;
+
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_STR(name)
 	ZEND_PARSE_PARAMETERS_END();
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S", &name) == FAILURE) {
-		return;
-	} 
 
 	RETURN_BOOL(php_yaconf_has(name));
 }
