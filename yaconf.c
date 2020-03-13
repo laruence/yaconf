@@ -433,7 +433,7 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 /* }}} */
 
 PHP_YACONF_API zval *php_yaconf_get(zend_string *name) /* {{{ */ {
-	if (ini_containers) {
+	if (EXPECTED(ini_containers)) {
 		zval *pzval;
 		char *seg, *delim;
 		size_t len;
@@ -472,9 +472,11 @@ PHP_METHOD(yaconf, get) {
 	zend_string *name;
 	zval *val, *defv = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|z", &name, &defv) == FAILURE) {
-		return;
-	} 
+	ZEND_PARSE_PARAMETERS_START(1, 2)
+		Z_PARAM_STR(name)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_ZVAL(defv)
+	ZEND_PARSE_PARAMETERS_END();
 
 	val = php_yaconf_get(name);
 	if (val) {
@@ -491,6 +493,9 @@ PHP_METHOD(yaconf, get) {
 */
 PHP_METHOD(yaconf, has) {
 	zend_string *name;
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STR(name)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S", &name) == FAILURE) {
 		return;
