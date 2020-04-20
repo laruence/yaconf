@@ -289,7 +289,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 	if (callback_type == ZEND_INI_PARSER_ENTRY) {
 		char *delim;
 
-		if (UNEXPECTED(delim = memchr(Z_STRVAL_P(key), '.', Z_STRLEN_P(key)))) {
+		if ((delim = memchr(Z_STRVAL_P(key), '.', Z_STRLEN_P(key)))) {
 			char *seg = Z_STRVAL_P(key);
 			size_t len = Z_STRLEN_P(key);
 
@@ -327,7 +327,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 		} else {
 			char *delim;
 
-			if (UNEXPECTED(delim = memchr(Z_STRVAL_P(key), '.', Z_STRLEN_P(key)))) {
+			if ((delim = memchr(Z_STRVAL_P(key), '.', Z_STRLEN_P(key)))) {
 				zval *parent;
 				char *seg = Z_STRVAL_P(key);
 				size_t len = Z_STRLEN_P(key);
@@ -439,7 +439,7 @@ PHP_YACONF_API zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 		size_t len;
 		HashTable *target = ini_containers;
 
-		if (UNEXPECTED(delim = memchr(ZSTR_VAL(name), '.', ZSTR_LEN(name)))) {
+		if ((delim = memchr(ZSTR_VAL(name), '.', ZSTR_LEN(name)))) {
 			seg = ZSTR_VAL(name);
 			len = ZSTR_LEN(name);
 			do {
