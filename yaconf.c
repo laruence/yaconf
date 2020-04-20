@@ -248,20 +248,20 @@ static inline void php_yaconf_trim_key(char **key, size_t *len) /* {{{ */ {
 /* }}} */
 
 static zval* php_yaconf_parse_nesting_key(HashTable *target, char **key, size_t *key_len, char *delim) /* {{{ */ {
+	zval rv;
 	zval *pzval;
 	char *seg = *key;
 	size_t len = *key_len;
 	int nesting = 0;
 
+	ZVAL_NULL(&rv);
 	do {
-		if (++nesting > 64) {
+		if (UNEXPECTED(++nesting > 64)) {
 			YACONF_G(parse_err) = 1;
 			php_error(E_WARNING, "Nesting too deep? key name contains more than 64 '.'");
 			return NULL;
 		}
 		if (!(pzval = zend_symtable_str_find(target, seg, delim - seg))) {
-			zval rv;
-			ZVAL_UNDEF(&rv);
 			pzval = php_yaconf_symtable_update(target, seg, delim - seg, &rv);
 		}
 
