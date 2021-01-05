@@ -4,6 +4,7 @@ Check for Yaconf with long key name
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
 yaconf.directory={PWD}/inis/005
+log_errors=1
 --FILE--
 <?php 
 var_dump(Yaconf::has("a"));
