@@ -23,7 +23,6 @@
 #include "main/php_scandir.h"
 #include "ext/standard/info.h"
 #include "php_yaconf.h"
-#include "yaconf_arginfo.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(yaconf);
 
@@ -44,6 +43,18 @@ typedef struct _yaconf_filenode {
 #define PALLOC_HASHTABLE(ht) do { \
 	(ht) = (HashTable*)pemalloc(sizeof(HashTable), 1); \
 } while(0)
+
+/* {{{ ARG_INFO
+ */
+ZEND_BEGIN_ARG_INFO_EX(php_yaconf_get_arginfo, 0, 0, 1)
+	ZEND_ARG_INFO(0, name)
+	ZEND_ARG_INFO(0, default)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(php_yaconf_has_arginfo, 0, 0, 1)
+	ZEND_ARG_INFO(0, name)
+ZEND_END_ARG_INFO()
+/* }}} */
 
 /* {{{ yaconf_module_entry
  */
@@ -523,6 +534,15 @@ PHP_METHOD(yaconf, __debug_info) {
 }
 /* }}} */
 
+/* {{{  yaconf_methods */
+zend_function_entry yaconf_methods[] = {
+	PHP_ME(yaconf, get, php_yaconf_get_arginfo, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+	PHP_ME(yaconf, has, php_yaconf_has_arginfo, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+	PHP_ME(yaconf, __debug_info, php_yaconf_has_arginfo, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+	{NULL, NULL, NULL}
+};
+/* }}} */
+
 /* {{{ PHP_INI
  */
 PHP_INI_BEGIN()
@@ -552,7 +572,7 @@ PHP_MINIT_FUNCTION(yaconf)
 
 	REGISTER_INI_ENTRIES();
 
-	INIT_CLASS_ENTRY(ce, "Yaconf", class_yaconf_methods);
+	INIT_CLASS_ENTRY(ce, "Yaconf", yaconf_methods);
 
 	yaconf_ce = zend_register_internal_class_ex(&ce, NULL);
 
