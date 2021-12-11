@@ -29,6 +29,8 @@
   <dir name="/"> 
    <file name="config.m4"    role="src" />
    <file name="php_yaconf.h" role="src" />
+   <file name="yaconf_arginfo.h" role="src" />
+   <file name="yaconf_legacy_arginfo.h" role="src" />
    <file name="LICENSE" role="doc" />
    <file name="CREDITS" role="doc" />
    <file name="yaconf.c" role="src" />
