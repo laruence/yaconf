@@ -10,11 +10,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2020-03-12</date>
- <time>14:10:00</time>
+ <date>2021-12-16</date>
+ <time>12:15:00</time>
  <version>
-  <release>1.1.0</release>
-  <api>1.1.0</api>
+  <release>1.1.1</release>
+  <api>1.1.1</api>
  </version>
  <stability>
   <release>stable</release>
@@ -22,8 +22,8 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-   - Refactor Yaconf for performance
-   - Around 40% time reduced according to benchmark
+  - Fixed build with PHP8.1
+  - Change to using stub.php generated arginfos
  </notes>
  <contents> 
   <dir name="/"> 
@@ -101,6 +101,23 @@
  <extsrcrelease />
  <changelog> 
   <release> 
+   <date>2021-12-16</date> 
+   <version> 
+    <release>1.1.1</release> 
+    <api>1.1.1</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Fixed build with PHP8.1
+    - Change to using stub.php generated arginfos
+   </notes> 
+  </release> 
+
+  <release> 
    <date>2020-03-12</date> 
    <version> 
     <release>1.1.0</release> 
@@ -116,7 +133,6 @@
     - Around 40% time reduced according to benchmark
    </notes> 
   </release> 
-
   <release> 
    <date>2019-12-23</date> 
    <version> 
