@@ -627,7 +627,7 @@ PHP_MINIT_FUNCTION(yaconf)
 								continue;
 							}
 #if PHP_VERSION_ID >= 80100
-							zend_string_release(fh.filename);
+							zend_destroy_file_handle(&fh);
 #endif
 						}
 						
@@ -746,7 +746,7 @@ PHP_RINIT_FUNCTION(yaconf)
 						}
 						free(namelist[i]);
 #if PHP_VERSION_ID >= 80100
-						zend_string_release(fh.filename);
+						zend_destroy_file_handle(&fh);
 #endif
 					}
 					free(namelist);

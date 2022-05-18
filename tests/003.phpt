@@ -12,6 +12,7 @@ var_dump(Yaconf::has("section.bar.application.."));
 var_dump(Yaconf::has(".section.bar..application"));
 var_dump(Yaconf::has("section.bar..application"));
 var_dump(Yaconf::has("section.bar.application.nonexists"));
+var_dump(Yaconf::get("section2"));
 var_dump(Yaconf::get("section.bar.application.nonexists", "default"));
 ?>
 --EXPECTF--
