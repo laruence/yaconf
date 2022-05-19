@@ -426,6 +426,39 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 }
 /* }}} */
 
+static int php_yaconf_parse_ini_file(const char *filename, zval *result) /* {{{ */ {
+	FILE *fp;
+	if ((fp = VCWD_FOPEN(filename, "r"))) {
+#if PHP_VERSION_ID < 80100
+		zend_file_handle fh = {{0}, 0};
+		fh.filename = filename;
+		fh.handle.fp = fp;
+		fh.type = ZEND_HANDLE_FP;
+#else
+		zend_file_handle fh;
+		zend_stream_init_fp(&fh, fp, filename);
+#endif
+		ZVAL_UNDEF(&active_ini_file_section);
+		YACONF_G(parse_err) = 0;
+		php_yaconf_hash_init(result, 128);
+		if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
+					php_yaconf_ini_parser_cb, (void *)result) == FAILURE || YACONF_G(parse_err)) {
+			YACONF_G(parse_err) = 0;
+			php_yaconf_hash_destroy(Z_ARRVAL_P(result));
+			ZVAL_NULL(result);
+#if PHP_VERSION_ID >=80100
+			zend_destroy_file_handle(&fh);
+#endif
+			return 0;
+		}
+#if PHP_VERSION_ID >= 80100
+		zend_destroy_file_handle(&fh);
+#endif
+	}
+	return 1;
+}
+/* }}} */
+
 PHP_YACONF_API zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 	if (EXPECTED(ini_containers)) {
 		zval *pzval;
@@ -575,7 +608,6 @@ PHP_MINIT_FUNCTION(yaconf)
 			&& !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)
 #endif
 			) {
-		zval result;
 		int ndir;
 		struct dirent **namelist;
 		char *p, ini_file[MAXPATHLEN];
@@ -587,7 +619,6 @@ PHP_MINIT_FUNCTION(yaconf)
 		if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
 			uint32_t i;
 			zend_stat_t sb;
-			zend_file_handle fh = {{0}, 0};
 
 			PALLOC_HASHTABLE(ini_containers);
 			zend_hash_init(ini_containers, ndir, NULL, NULL, 1);
@@ -605,34 +636,13 @@ PHP_MINIT_FUNCTION(yaconf)
 
 				if (VCWD_STAT(ini_file, &sb) == 0) {
 					if (S_ISREG(sb.st_mode)) {
+						zval result;
+						FILE *fp;
 						yaconf_filenode node;
-						if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
-#if PHP_VERSION_ID >= 80100
-							fh.filename = zend_string_init(ini_file, strlen(ini_file), 0);
-#else
-							fh.filename = ini_file;
-#endif
-							fh.type = ZEND_HANDLE_FP;
-				            ZVAL_UNDEF(&active_ini_file_section);
-							YACONF_G(parse_err) = 0;
-							php_yaconf_hash_init(&result, 128);
-							if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
-									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
-								YACONF_G(parse_err) = 0;
-								php_yaconf_hash_destroy(Z_ARRVAL(result));
-								free(namelist[i]);
-#if PHP_VERSION_ID >= 80100
-								zend_string_release(fh.filename);
-#endif
-								continue;
-							}
-#if PHP_VERSION_ID >= 80100
-							zend_destroy_file_handle(&fh);
-#endif
+						if (!php_yaconf_parse_ini_file(ini_file, &result)) {
+							continue;
 						}
-						
 						php_yaconf_symtable_update(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name, &result);
-
 						node.filename = zend_string_init(namelist[i]->d_name, strlen(namelist[i]->d_name), 1);
 						node.mtime = sb.st_mtime;
 						zend_hash_update_mem(parsed_ini_files, node.filename, &node, sizeof(yaconf_filenode));
@@ -683,7 +693,6 @@ PHP_RINIT_FUNCTION(yaconf)
 
 				if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
 					zend_stat_t sb;
-					zend_file_handle fh = {{0}, 0};
 					yaconf_filenode *node = NULL;
 
 					for (i = 0; i < ndir; i++) {
@@ -706,28 +715,10 @@ PHP_RINIT_FUNCTION(yaconf)
 							continue;
 						}
 
-						if ((fh.handle.fp = VCWD_FOPEN(ini_file, "r"))) {
-#if PHP_VERSION_ID >= 80100
-							fh.filename = zend_string_init(ini_file, strlen(ini_file), 0);
-#else
-							fh.filename = ini_file;
-#endif
-							fh.type = ZEND_HANDLE_FP;
-							ZVAL_UNDEF(&active_ini_file_section);
-							YACONF_G(parse_err) = 0;
-							php_yaconf_hash_init(&result, 128);
-							if (zend_parse_ini_file(&fh, 1, 0 /* ZEND_INI_SCANNER_NORMAL */,
-									php_yaconf_ini_parser_cb, (void *)&result) == FAILURE || YACONF_G(parse_err)) {
-								YACONF_G(parse_err) = 0;
-								php_yaconf_hash_destroy(Z_ARRVAL(result));
-								free(namelist[i]);
-#if PHP_VERSION_ID >= 80100
-								zend_string_release(fh.filename);
-#endif
-								continue;
-							}
+						if (!php_yaconf_parse_ini_file(ini_file, &result)) {
+							free(namelist[i]);
+							continue;
 						}
-
 
 						if ((orig_ht = zend_symtable_str_find(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name)) != NULL) {
 							php_yaconf_hash_destroy(Z_ARRVAL_P(orig_ht));
@@ -745,9 +736,6 @@ PHP_RINIT_FUNCTION(yaconf)
 							zend_hash_update_mem(parsed_ini_files, n.filename, &n, sizeof(yaconf_filenode));
 						}
 						free(namelist[i]);
-#if PHP_VERSION_ID >= 80100
-						zend_destroy_file_handle(&fh);
-#endif
 					}
 					free(namelist);
 				}
