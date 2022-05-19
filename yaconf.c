@@ -83,34 +83,26 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	PALLOC_HASHTABLE(ht);
 	/* ZVAL_PTR_DTOR is necessary in case that this array be cloned */
 	zend_hash_init(ht, size, NULL, ZVAL_PTR_DTOR, 1);
-#if PHP_VERSION_ID < 70300
-	GC_FLAGS(ht) |= (IS_ARRAY_IMMUTABLE | HASH_FLAG_STATIC_KEYS);
-#else
-	HT_FLAGS(ht) |= (IS_ARRAY_IMMUTABLE | HASH_FLAG_STATIC_KEYS);
-#endif
+
 #if PHP_VERSION_ID >= 70400
 	zend_hash_real_init(ht, 0);
 #endif
 #if PHP_VERSION_ID >= 70200
 	HT_ALLOW_COW_VIOLATION(ht);
 #endif
-#if PHP_VERSION_ID < 70300
-	GC_FLAGS(ht) &= ~HASH_FLAG_APPLY_PROTECTION;
-#endif
-
-#if PHP_VERSION_ID < 70300
-	GC_REFCOUNT(ht) = 2;
-#else
-	GC_SET_REFCOUNT(ht, 2);
-#endif
 
 	ZVAL_ARR(zv, ht);
-#if PHP_VERSION_ID < 70200
-	Z_TYPE_FLAGS_P(zv) = IS_TYPE_IMMUTABLE;
-#elif PHP_VERSION_ID < 70300
+	/* make immutable array */
+#if PHP_VERSION_ID < 70300
 	Z_TYPE_FLAGS_P(zv) = IS_TYPE_COPYABLE;
+	GC_REFCOUNT(ht) = 2;
+	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
+	ht->u.flags |= HASH_FLAG_STATIC_KEYS;
+	ht->u.flags &= ~HASH_FLAG_APPLY_PROTECTION;
 #else
 	Z_TYPE_FLAGS_P(zv) = 0;
+	GC_SET_REFCOUNT(ht, 2);
+	GC_ADD_FLAGS(ht, IS_ARRAY_IMMUTABLE);
 #endif
 } 
 /* }}} */
