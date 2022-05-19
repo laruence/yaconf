@@ -10,11 +10,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2021-12-16</date>
- <time>12:15:00</time>
+ <date>2022-05-19</date>
+ <time>11:00:00</time>
  <version>
-  <release>1.1.1</release>
-  <api>1.1.1</api>
+  <release>1.1.2</release>
+  <api>1.1.2</api>
  </version>
  <stability>
   <release>stable</release>
@@ -22,8 +22,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Fixed build with PHP8.1
-  - Change to using stub.php generated arginfos
+  - Fixed ISSUE #67 (parsing bug with PHP8.1)
  </notes>
  <contents> 
   <dir name="/"> 
@@ -106,6 +105,22 @@
  <extsrcrelease />
  <changelog> 
   <release> 
+   <date>2022-05-19</date> 
+   <version> 
+    <release>1.1.2</release> 
+    <api>1.1.2</api> 
+   </version> 
+   <stability> 
+    <release>stable</release> 
+    <api>stable</api> 
+   </stability> 
+   <license uri="http://www.php.net/license">PHP License</license> 
+   <notes>
+    - Fixed ISSUE #67 (parsing bug with PHP8.1)
+   </notes> 
+  </release> 
+
+  <release> 
    <date>2021-12-16</date> 
    <version> 
     <release>1.1.1</release> 
@@ -121,7 +136,6 @@
     - Change to using stub.php generated arginfos
    </notes> 
   </release> 
-
   <release> 
    <date>2020-03-12</date> 
    <version> 
