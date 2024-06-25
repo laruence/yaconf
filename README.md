@@ -1,5 +1,5 @@
 # Yaconf - Yet Another Configurations Container
-[![Build Status](https://secure.travis-ci.org/laruence/yaconf.png)](https://travis-ci.org/laruence/yaconf) [![Build status](https://ci.appveyor.com/api/projects/status/hbrmch6np854b4b5/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yaconf/branch/master) [![Build Status](https://github.com/laruence/yaconf/workflows/integrate/badge.svg?branch=master)](https://github.com/laruence/yaconf/actions?query=workflow%3Aintegrate)
+[![Build status](https://ci.appveyor.com/api/projects/status/hbrmch6np854b4b5/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yaconf/branch/master) [![Build Status](https://github.com/laruence/yaconf/workflows/integrate/badge.svg?branch=master)](https://github.com/laruence/yaconf/actions?query=workflow%3Aintegrate)
 
 A PHP Persistent Configurations Container
 
