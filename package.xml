@@ -45,6 +45,7 @@
     <file name="008.phpt" role="test" />
     <file name="009.phpt" role="test" />
     <file name="010.phpt" role="test" />
+    <file name="011.phpt" role="test" />
     <file name="issue19.phpt" role="test" />
     <file name="issue26.phpt" role="test" />
     <file name="issue67.phpt" role="test" />
@@ -73,6 +74,9 @@
      </dir>
      <dir name="010">
       <file name="a.ini" role="test" />
+     </dir>
+     <dir name="011">
+      <file name="011.ini" role="test" />
      </dir>
      <dir name="issue26">
       <file name="issue26.ini" role="test" />
