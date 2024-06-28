@@ -9,7 +9,7 @@ class Yaconf {
 	/* methods */
 	public static function get(string $name, mixed $default = NULL):mixed {}
 
-	public static function has(string $name):bool {}	
+	public static function has(string $name):?bool {}
 
 	public static function __debug_info(string $name):?array {}
 }

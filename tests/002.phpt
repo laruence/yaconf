@@ -1,5 +1,5 @@
 --TEST--
-Check for Yaconf
+Check for Yaconf inis
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
