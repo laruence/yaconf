@@ -629,7 +629,6 @@ PHP_MINIT_FUNCTION(yaconf)
 				if (VCWD_STAT(ini_file, &sb) == 0) {
 					if (S_ISREG(sb.st_mode)) {
 						zval result;
-						FILE *fp;
 						yaconf_filenode node;
 						if (!php_yaconf_parse_ini_file(ini_file, &result)) {
 							continue;
