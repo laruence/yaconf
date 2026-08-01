@@ -1,0 +1,23 @@
+{
+  "name": "laruence/yaconf",
+  "type": "php-ext",
+  "license": "PHP-3.01",
+  "description": "A PHP Persistent Configurations Container",
+  "require": {
+    "php": ">=7.0"
+  },
+  "replace": {
+    "ext-yaconf": "*"
+  },
+  "php-ext": {
+    "extension-name": "ext-yaconf",
+	"download-url-method": ["pre-packaged-binary", "composer-default"],
+	"priority": 73,
+    "configure-options": [
+      {
+        "name": "enable-yaconf",
+        "description": "whether to enable yaconf support"
+      }
+    ]
+  }
+}
