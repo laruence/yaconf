@@ -27,20 +27,6 @@ $ ./configure --with-php-config=/path/to/php-config
 $ make && make install
 ```
 
-## Runtime Configuration
-
-| INI Setting | Default | Description |
-|---|---|---|
-| `yaf.environ` | `"product"` | Default environment name. This maps to the INI section loaded from `application.ini` |
-| `yaf.library` | `""` | Global library directory, searched after the application's local library |
-| `yaf.forward_limit` | `5` | Maximum number of `forward()` calls allowed in a single request. Prevents infinite loops |
-| `yaf.name_suffix` | `1` | When `1`, classes use suffix naming (`IndexController`). When `0`, uses prefix naming (`Controller_Index`) |
-| `yaf.name_separator` | `""` | In multi-module setups, replaces the underscore between module and class name. E.g. with `"/"`: `Admin/IndexController` instead of `Admin_IndexController` |
-| `yaf.use_namespace` | `0` | When `1`, enables namespaced class names (`Yaf\Application`, `Yaf\Controller_Abstract`, etc.) |
-| `yaf.action_prefer` | `0` | When `1`, actions are resolved as standalone `Yaf_Action_Abstract` classes in an `actions/` subdirectory instead of controller methods |
-| `yaf.lowcase_path` | `0` | When `1`, all paths are lowercased before class loading (e.g. `controllers/Index.php` → `controllers/index.php`) |
-| `yaf.use_spl_autoload` | `0` | When `1`, Yaf registers itself on the SPL autoload stack instead of replacing `__autoload`. Useful when coexisting with other autoloaders |
-
 ## Documentation
 
 Yaf manual can be found at: http://www.php.net/manual/en/book.yaf.php
@@ -251,6 +237,20 @@ Point your browser to your configured domain (e.g. `http://www.example.com`) and
 
 
 ## Core Concepts
+
+### Runtime Configuration
+
+| INI Setting | Default | Description |
+|---|---|---|
+| `yaf.environ` | `"product"` | Default environment name. This maps to the INI section loaded from `application.ini` |
+| `yaf.library` | `""` | Global library directory, searched after the application's local library |
+| `yaf.forward_limit` | `5` | Maximum number of `forward()` calls allowed in a single request. Prevents infinite loops |
+| `yaf.name_suffix` | `1` | When `1`, classes use suffix naming (`IndexController`). When `0`, uses prefix naming (`Controller_Index`) |
+| `yaf.name_separator` | `""` | In multi-module setups, replaces the underscore between module and class name. E.g. with `"/"`: `Admin/IndexController` instead of `Admin_IndexController` |
+| `yaf.use_namespace` | `0` | When `1`, enables namespaced class names (`Yaf\Application`, `Yaf\Controller_Abstract`, etc.) |
+| `yaf.action_prefer` | `0` | When `1`, actions are resolved as standalone `Yaf_Action_Abstract` classes in an `actions/` subdirectory instead of controller methods |
+| `yaf.lowcase_path` | `0` | When `1`, all paths are lowercased before class loading (e.g. `controllers/Index.php` → `controllers/index.php`) |
+| `yaf.use_spl_autoload` | `0` | When `1`, Yaf registers itself on the SPL autoload stack instead of replacing `__autoload`. Useful when coexisting with other autoloaders |
 
 ### Routing
 
