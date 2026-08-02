@@ -243,7 +243,7 @@ You can generate the example above using Yaf Code Generator:
 $ ./yaf_cg -d output_directory [-a application_name] [--namespace]
 ```
 
-The code generator is located at: https://github.com/laruence/yaf/tree/master/tools/
+The code generator is located at: https://github.com/laruence/yaf/tree/master/tools/cg
 
 ## Core Concepts
 
