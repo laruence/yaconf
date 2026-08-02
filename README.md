@@ -235,6 +235,15 @@ The view script for the default controller and default action is `application/vi
 
 Point your browser to your configured domain (e.g. `http://www.example.com`) and you should see "Hello World".
 
+### Code Generator
+
+You can generate the example above using Yaf Code Generator:
+
+```bash
+$ ./yaf_cg -d output_directory [-a application_name] [--namespace]
+```
+
+The code generator is located at: https://github.com/laruence/yaf/tree/master/tools/
 
 ## Core Concepts
 
@@ -400,17 +409,7 @@ $dispatcher->catchException(true);  // catch and store in request
 | `Yaf_View_Simple` | PHP-template view engine (`assign`, `render`, `display`, `eval`, `assignRef`, `clear`) |
 | `Yaf_Plugin_Abstract` | 7-hook plugin base class |
 
-## Code Generator
-
-You can generate the example above using Yaf Code Generator:
-
-```bash
-$ ./yaf_cg -d output_directory [-a application_name] [--namespace]
-```
-
-The code generator is located at: https://github.com/laruence/yaf/tree/master/tools/cg
-
-## More
+### More
 
 More info can be found at the Yaf Manual: http://www.php.net/manual/en/book.yaf.php
 
