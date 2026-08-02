@@ -1,93 +1,128 @@
-# Yaconf - Yet Another Configurations Container
+# Yaconf - Yet Another Configuration Container
+
 [![Build status](https://ci.appveyor.com/api/projects/status/hbrmch6np854b4b5/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yaconf/branch/master) [![Build Status](https://github.com/laruence/yaconf/workflows/integrate/badge.svg)](https://github.com/laruence/yaconf/actions?query=workflow%3Aintegrate)
 
-A PHP Persistent Configurations Container
+A PHP Persistent Configuration Container
 
-### Requirement
+## Requirement
+
 - PHP 7+
 
-### Introduction
+## Introduction
 
-Yaconf is a configurations container, it parses ini files, store the result in PHP when PHP is started, configurations live in the whole PHP lifecycle, which makes it very fast.
+Yaconf is a configuration container. It parses INI files and stores the result in PHP at startup. Configurations live for the entire PHP lifecycle, which makes it very fast.
 
-### Features
-- Fast, Light
-- Zero-copy while accesses configurations
-- Support sections, sections inheritance
-- Configurations reload automatically after changed
+## Features
 
-### Install
+- Fast, light
+- Zero-copy when accessing configurations
+- Supports sections and section inheritance
+- Configurations reload automatically after changes
 
-#### Compile Yaconf in Linux
-Yaconf is an PECL extension, thus you can simply install it by:
+## Install
 
+### Install via PECL
+
+Yaconf is a PECL extension, simply install it by:
+
+```bash
+$ pecl install yaconf
 ```
-$pecl install yaconf
-```
-Or you can compile it by your self:
-```
-$ /path/to/php7/bin/phpize
-$ ./configure --with-php-config=/path/to/php7/bin/php-config
+
+### Compile from source
+
+```bash
+$ /path/to/phpize
+$ ./configure --with-php-config=/path/to/php-config
 $ make && make install
 ```
 
-### Runtime configuration
+## Runtime Configuration
 
-- yaconf.directory
+| INI Setting | Default | Description |
+|---|---|---|
+| `yaconf.directory` | *(none)* | Path to the directory where all INI configuration files are placed |
+| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by the directory's mtime). Set to `0` to disable automatic reloading — you will need to restart PHP to reload configurations. |
+
+## Constants
+
+```php
+YACONF_VERSION
 ```
-  Path to directory which all ini configuration files are placed in
+
+## APIs
+
+### Yaconf::get
+
+```php
+mixed Yaconf::get(string $name, mixed $default = null)
 ```
-- yaconf.check_delay
+
+Fetches a configuration value by its `$name`. The `$name` uses dot notation to traverse nested keys (e.g. `"foo.name"`, `"foo.features.1"`, `"foo.features.plus"`).
+
+Returns the configuration value on success, or `$default` (which defaults to `null`) if the key is not found.
+
+### Yaconf::has
+
+```php
+bool Yaconf::has(string $name)
 ```
-  In which interval Yaconf will detect ini file's change(by directory's mtime),
-  if it is set to zero, you have to restart php to reloading configurations.
+
+Returns `true` if a configuration value exists at `$name`, `false` otherwise.
+
+```php
+<?php
+var_dump(Yaconf::has("foo.name")); // bool(true)
+var_dump(Yaconf::has("foo.not_exist")); // bool(false)
 ```
 
-### APIs
+## Example
 
-````php
-mixed Yaconf::get(string $name, mixed $default = NULL)
-bool  Yaconf::has(string $name)
-````
+### Directory
 
-### Example
+Assuming we place all configuration files in `/tmp/yaconf/`, add this to `php.ini`:
 
-#### Directory
-
-Assuming we place all configurations files in /tmp/yaconf/, thus we added this into php.ini
-```
+```ini
 yaconf.directory=/tmp/yaconf
-````
+```
 
-#### INI Files
+### INI Files
 
-Assuming there are two files in /tmp/yaconf
+Assuming there are two files in `/tmp/yaconf`:
 
-foo.ini
-````ini
-name="yaconf"                  ;string
-year=2015                      ;number
-features[]="fast"              ;map
+**foo.ini**
+
+```ini
+name="yaconf"                  ; string
+year=2015                      ; number
+features[]="fast"              ; map
 features.1="light"
 features.plus="zero-copy"
-features.constant=PHP_VERSION  ;PHP constants
-features.env=${HOME}           ;Enviorment variables
-````
-and bar.ini
-````ini
+features.constant=PHP_VERSION  ; PHP constants are resolved
+features.env=${HOME}           ; environment variables are resolved
+```
+
+**bar.ini**
+
+```ini
 [base]
 parent="yaconf"
 children="NULL"
 
-[children:base]               ;inherit from section "base"
+[children:base]               ; inherits from section "base"
 children="set"
-````
-#### Run
-lets retrieve the configurations from Yaconf
+```
 
-##### foo.ini
-````php
-php7 -r 'var_dump(Yaconf::get("foo"));'
+The `[children:base]` syntax means: the `children` section inherits all keys from the `base` section, and can override any of them.
+
+### Run
+
+Let's retrieve the configurations from Yaconf:
+
+#### foo.ini
+
+```php
+$ php -r 'var_dump(Yaconf::get("foo"));'
 /*
 array(3) {
   ["name"]=>
@@ -109,25 +144,29 @@ array(3) {
   }
 }
 */
-````
-As you can see, Yaconf supports string, map(array), ini, env variable and PHP constants.
+```
 
-You can also access configurations like this:
-````php
-php7 -r 'var_dump(Yaconf::get("foo.name"));'
-//string(6) "yaconf"
+As you can see, Yaconf supports string, map (array), INI, environment variables, and PHP constants.
 
-php7 -r 'var_dump(Yaconf::get("foo.features.1"));'
-//string(5) "light"
+You can also access configurations using dot notation:
 
-php7 -r 'var_dump(Yaconf::get("foo.features")["plus"]);'
-//string(9) "zero-copy"
-````
+```php
+$ php -r 'var_dump(Yaconf::get("foo.name"));'
+// string(6) "yaconf"
 
-##### bar.ini
-Now let's see the sections and sections inheritance:
-````php
-php7 -r 'var_dump(Yaconf::get("bar"));'
+$ php -r 'var_dump(Yaconf::get("foo.features.1"));'
+// string(5) "light"
+
+$ php -r 'var_dump(Yaconf::get("foo.features")["plus"]);'
+// string(9) "zero-copy"
+```
+
+#### bar.ini
+
+Now let's see sections and section inheritance:
+
+```php
+$ php -r 'var_dump(Yaconf::get("bar"));'
 /*
 array(2) {
   ["base"]=>
@@ -146,6 +185,10 @@ array(2) {
   }
 }
 */
-````
+```
 
-Children section has inherited values in base sections, and children is able to override the values they want.
+The `children` section inherits values from the `base` section, and can override the values it wants to change.
+
+## License
+
+[PHP-3.01](https://www.php.net/license/3_01.txt)
