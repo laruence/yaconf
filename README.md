@@ -10,14 +10,15 @@ A PHP Persistent Configuration Container
 
 ## Introduction
 
-Yaconf is a configuration container. It parses INI files and stores the result in PHP at startup. Configurations live for the entire PHP lifecycle, which makes it very fast.
+Yaconf is a configuration container. It parses INI files and stores the result in PHP at startup. Configurations live in persistent memory across the entire PHP lifecycle, which makes it very fast.
 
 ## Features
 
 - Fast, light
 - Zero-copy when accessing configurations
-- Supports sections and section inheritance
-- Configurations reload automatically after changes
+- Supports sections and section inheritance (up to 16 levels deep)
+- Configurations reload automatically after changes (non-ZTS only)
+- C API exported for use by other PHP extensions
 
 ## Install
 
@@ -41,40 +42,51 @@ $ make && make install
 
 | INI Setting | Default | Description |
 |---|---|---|
-| `yaconf.directory` | *(none)* | Path to the directory where all INI configuration files are placed |
-| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by the directory's mtime). Set to `0` to disable automatic reloading — you will need to restart PHP to reload configurations. |
+| `yaconf.directory` | `""` | Path to the directory where all INI configuration files are placed |
+| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by the directory's mtime). Set to `0` to disable automatic reloading — you will need to restart PHP to reload configurations. **Only available in non-ZTS builds** — in ZTS builds, configs are loaded once at startup and never reloaded. |
 
 ## Constants
 
-```php
-YACONF_VERSION
-```
+Yaconf does not register any PHP constants.
 
 ## APIs
+
+All Yaconf methods are `static` — you call them on the class directly, not on an instance.
 
 ### Yaconf::get
 
 ```php
-mixed Yaconf::get(string $name, mixed $default = null)
+static mixed Yaconf::get(string $name, mixed $default = null)
 ```
 
-Fetches a configuration value by its `$name`. The `$name` uses dot notation to traverse nested keys (e.g. `"foo.name"`, `"foo.features.1"`, `"foo.features.plus"`).
+Fetches a configuration value by its `$name`. The `$name` uses dot notation to traverse nested keys (e.g. `"foo.name"`, `"foo.features.1"`, `"foo.features.plus"`). The maximum nesting depth is 64.
 
 Returns the configuration value on success, or `$default` (which defaults to `null`) if the key is not found.
 
 ### Yaconf::has
 
 ```php
-bool Yaconf::has(string $name)
+static bool Yaconf::has(string $name)
 ```
 
 Returns `true` if a configuration value exists at `$name`, `false` otherwise.
 
 ```php
 <?php
-var_dump(Yaconf::has("foo.name")); // bool(true)
+var_dump(Yaconf::has("foo.name"));      // bool(true)
 var_dump(Yaconf::has("foo.not_exist")); // bool(false)
 ```
+
+### C API for Other Extensions
+
+Yaconf exports two functions via `php_yaconf.h` for use by other PHP extensions:
+
+```c
+PHP_YACONF_API zval *php_yaconf_get(char *name, uint name_len);
+PHP_YACONF_API int    php_yaconf_has(char *name, uint name_len);
+```
+
+These mirror `Yaconf::get()` and `Yaconf::has()` in C. The header is installed by `make install` — include it in your extension with `#include "ext/yaconf/php_yaconf.h"`.
 
 ## Example
 
@@ -87,6 +99,8 @@ yaconf.directory=/tmp/yaconf
 ```
 
 ### INI Files
+
+Yaconf only loads files with the `.ini` extension from the configured directory.
 
 Assuming there are two files in `/tmp/yaconf`:
 
@@ -113,7 +127,7 @@ children="NULL"
 children="set"
 ```
 
-The `[children:base]` syntax means: the `children` section inherits all keys from the `base` section, and can override any of them.
+The `[children:base]` syntax means: the `children` section inherits all keys from the `base` section, and can override any of them. Section inheritance can be chained (e.g. `[grandchild:children]` inheriting from a section that itself inherits from `base`), up to a maximum depth of 16.
 
 ### Run
 
@@ -146,7 +160,7 @@ array(3) {
 */
 ```
 
-As you can see, Yaconf supports string, map (array), INI, environment variables, and PHP constants.
+As you can see, Yaconf supports string, map (array), INI section inheritance, environment variables, and PHP constants.
 
 You can also access configurations using dot notation:
 
@@ -188,6 +202,10 @@ array(2) {
 ```
 
 The `children` section inherits values from the `base` section, and can override the values it wants to change.
+
+### phpinfo() Output
+
+When `yaconf.check_delay` is non-zero, Yaconf adds a block to `phpinfo()` showing the directory being watched, the configured check delay, and a list of all currently loaded `.ini` files with their last modification time.
 
 ## License
 
