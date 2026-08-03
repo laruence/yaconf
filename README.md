@@ -12,6 +12,8 @@ A PHP Persistent Configuration Container
 
 Yaconf is a configuration container. It parses INI files and stores the result in PHP at startup. Configurations live in persistent memory across the entire PHP lifecycle, which makes it very fast.
 
+Yaconf uses an **immutable data + Copy-on-Write** design rather than shared memory (shmget/mmap). Parsed configs are stored in persistent `zend_array`s marked `IS_ARRAY_IMMUTABLE` — and all keys are interned as permanent strings. Because the hash tables are immutable, PHP-FPM workers forked from the master process share the **same physical memory pages** via the OS kernel's COW mechanism. As long as the configuration doesn't change, memory is allocated only once — no matter how many workers are running. When a config file is modified and Yaconf reloads it (in non-ZTS mode), the kernel copies only the changed pages on write, isolating the new config from the old.
+
 > **⚠ ZTS (Thread-Safe) builds**: Yaconf does **not** load configurations in ZTS builds. The directory scan logic and `yaconf.check_delay` are both skipped at compile time. Use Yaconf with non-ZTS (NTS) PHP only.
 
 ### When to use Yaconf
@@ -22,7 +24,7 @@ Yaconf flips this: **parse once at startup, serve from memory forever.** The par
 
 - **Best for**: Read-heavy config that changes infrequently — database credentials, feature flags, routing tables, service discovery maps. Anything you `include` or `parse_ini_file()` on every request today.
 - **Not ideal for**: Config that changes per-request or per-user. Dynamic configuration that needs runtime computation (Yaconf stores static values — PHP constants and env vars are resolved once at parse time, not on access).
-- **Scale**: The memory overhead is minimal — a few KB of shared memory per config file. There's no practical limit on the number of `.ini` files beyond what your `yaconf.directory` contains.
+- **Scale**: The memory overhead is minimal — a few KB per config file, shared across all workers via COW until the config changes. There's no practical limit on the number of `.ini` files beyond what your `yaconf.directory` contains.
 
 Yaconf is for static configuration. For runtime caching — database query results, computed data, HTML fragments, ephemeral tokens — use [Yac](https://github.com/laruence/yac), which shares the same "local first, zero dependency" design philosophy.
 
