@@ -6,6 +6,7 @@ Jarvis (AI assistant to Laruence)
 <?php
 if (!extension_loaded("yaconf")) print "skip";
 if (substr(PHP_OS, 0, 3) == 'WIN') die("skip doesn't work on Windows");
+if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supported in ZTS");
 ?>
 --FILE--
 <?php
