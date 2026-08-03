@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: d6aeccf359c9cad47169d98823037b15318989a6 */
+ * Stub hash: 1c68460e6a186d2bdb9dba8010ab516eaff48a71 */
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Yaconf_get, 0, 0, 1)
 	ZEND_ARG_INFO(0, name)
