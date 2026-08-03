@@ -12,6 +12,20 @@ A PHP Persistent Configuration Container
 
 Yaconf is a configuration container. It parses INI files and stores the result in PHP at startup. Configurations live in persistent memory across the entire PHP lifecycle, which makes it very fast.
 
+> **⚠ ZTS (Thread-Safe) builds**: Yaconf does **not** load configurations in ZTS builds. The directory scan logic and `yaconf.check_delay` are both skipped at compile time. Use Yaconf with non-ZTS (NTS) PHP only.
+
+### When to use Yaconf
+
+Most PHP applications have a pile of `.ini` or `.php` config files that get parsed on every request. Every request pays the I/O and parse cost, then throws the result away — only to do it again on the next request.
+
+Yaconf flips this: **parse once at startup, serve from memory forever.** The parsed config lives in persistent `zend_array`s with immutable hash tables. `Yaconf::get()` is a pure hash lookup — no file I/O, no parsing, no memory allocation per request.
+
+- **Best for**: Read-heavy config that changes infrequently — database credentials, feature flags, routing tables, service discovery maps. Anything you `include` or `parse_ini_file()` on every request today.
+- **Not ideal for**: Config that changes per-request or per-user. Dynamic configuration that needs runtime computation (Yaconf stores static values — PHP constants and env vars are resolved once at parse time, not on access).
+- **Scale**: The memory overhead is minimal — a few KB of shared memory per config file. There's no practical limit on the number of `.ini` files beyond what your `yaconf.directory` contains.
+
+Yaconf is for static configuration. For runtime caching — database query results, computed data, HTML fragments, ephemeral tokens — use [Yac](https://github.com/laruence/yac), which shares the same "local first, zero dependency" design philosophy.
+
 ## Features
 
 - Fast, light
@@ -43,7 +57,7 @@ $ make && make install
 | INI Setting | Default | Description |
 |---|---|---|
 | `yaconf.directory` | `""` | Path to the directory where all INI configuration files are placed |
-| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by the directory's mtime). Set to `0` to disable automatic reloading — you will need to restart PHP to reload configurations. **Only available in non-ZTS builds** — in ZTS builds, configs are loaded once at startup and never reloaded. |
+| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by the directory's mtime). Set to `0` to disable automatic reloading — you will need to restart PHP to reload configurations. **Only available in non-ZTS builds.** In ZTS builds, Yaconf does not load configurations at all (the directory scan and `check_delay` INI entry are both skipped at compile time). |
 
 ## Constants
 
@@ -82,8 +96,8 @@ var_dump(Yaconf::has("foo.not_exist")); // bool(false)
 Yaconf exports two functions via `php_yaconf.h` for use by other PHP extensions:
 
 ```c
-PHP_YACONF_API zval *php_yaconf_get(char *name, uint name_len);
-PHP_YACONF_API int    php_yaconf_has(char *name, uint name_len);
+PHP_YACONF_API zval *php_yaconf_get(zend_string *name);
+PHP_YACONF_API int    php_yaconf_has(zend_string *name);
 ```
 
 These mirror `Yaconf::get()` and `Yaconf::has()` in C. The header is installed by `make install` — include it in your extension with `#include "ext/yaconf/php_yaconf.h"`.
