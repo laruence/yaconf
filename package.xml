@@ -51,6 +51,12 @@
     <file name="issue19.phpt" role="test" />
     <file name="issue26.phpt" role="test" />
     <file name="issue67.phpt" role="test" />
+    <file name="014.phpt" role="test" />
+    <file name="015.phpt" role="test" />
+    <file name="016.phpt" role="test" />
+    <file name="017.phpt" role="test" />
+    <file name="018.phpt" role="test" />
+    <file name="019.phpt" role="test" />
     <dir name="inis">
      <dir name="002">
       <file name="basic.ini" role="test" />
@@ -93,6 +99,22 @@
       <file name="a.ini" role="test" />
       <file name="b.ini" role="test" />
      </dir>
+     <dir name="014">
+      <file name="debug.ini" role="test" />
+     </dir>
+     <dir name="015">
+      <file name="defaults.ini" role="test" />
+     </dir>
+     <dir name="016">
+      <file name="dot.ini" role="test" />
+     </dir>
+     <dir name="017">
+      <file name="sections.ini" role="test" />
+     </dir>
+     <dir name="018">
+      <file name="types.ini" role="test" />
+     </dir>
+     <dir name="019" />
     </dir>
    </dir>
   </dir> 
