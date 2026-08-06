@@ -62,6 +62,7 @@
     <file name="022.phpt" role="test" />
     <file name="023.phpt" role="test" />
     <file name="024.phpt" role="test" />
+    <file name="025.phpt" role="test" />
 	    <file name="yaconf_server.inc" role="test" />
     <dir name="inis">
      <dir name="002">

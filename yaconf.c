@@ -632,6 +632,7 @@ PHP_MINIT_FUNCTION(yaconf)
 						zval result;
 						yaconf_filenode node;
 						if (!php_yaconf_parse_ini_file(ini_file, &result)) {
+							free(namelist[i]);
 							continue;
 						}
 						php_yaconf_symtable_update(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name, &result);
@@ -639,9 +640,9 @@ PHP_MINIT_FUNCTION(yaconf)
 						node.mtime = sb.st_mtime;
 						zend_hash_update_mem(parsed_ini_files, node.filename, &node, sizeof(yaconf_filenode));
 					}
-				} else {
-					php_error(E_ERROR, "Could not stat '%s'", ini_file);
 				}
+				/* stat() may fail if the file was removed between scandir() and stat(),
+				 * just skip it, like the reload path does */
 				free(namelist[i]);
 			}
 #ifndef ZTS
