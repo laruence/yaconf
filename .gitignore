@@ -1,9 +1,11 @@
 # Object files
 *.o
+*.lo
 
 # Libraries
 *.lib
 *.a
+*.la
 
 # Shared objects (inc. Windows DLLs)
 *.dll
@@ -16,15 +18,48 @@
 *.out
 *.app
 
-# Visual Studio
 
-*.opensdf
-*.sdf
-*.sln
-*.vcxproj
-*.vcxproj.filters
-bin/
-tmp/
-.vs/
-Debug/
-Release/
+# autotools
+.deps
+.libs
+config.cache
+config.guess
+config.h
+config.h.in
+config.h.in~
+config.log
+config.nice
+config.status
+config.sub
+configure
+configure.in
+configure.ac
+conftest
+conftest.c
+Makefile
+Makefile.fragments
+Makefile.global
+Makefile.objects
+acinclude.m4
+aclocal.m4
+autom4te.cache
+build
+install-sh
+libtool
+ltmain.sh
+ltmain.sh.backup
+missing
+mkinstalldirs
+modules
+run-tests.php
+run-tests.log
+tmp-php.ini
+
+# Archives
+yac-*.tgz
+
+# Dependency files
+*.dep
+
+# Test runner reports
+php_test_results_*.txt
