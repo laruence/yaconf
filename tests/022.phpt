@@ -34,7 +34,12 @@ file_put_contents($inidir . DIRECTORY_SEPARATOR . "locked.ini", "secret=hidden\n
 chmod($inidir . DIRECTORY_SEPARATOR . "locked.ini", 0000);
 
 $php = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
-$cmd_args = getenv('TEST_PHP_ARGS');
+/* TEST_PHP_ARGS carries run-tests.php options (e.g. --show-diff) on CI,
+ * which the PHP CLI does not understand; skip it there, like yaconf_server.inc */
+$cmd_args = NULL;
+if (!(bool)getenv('TRAVIS') && !(bool)getenv('GITHUB')) {
+    $cmd_args = getenv('TEST_PHP_ARGS');
+}
 if (substr(PHP_OS, 0, 3) == 'WIN') {
     $cmd_args = " -d extension=php_yaconf.dll " . $cmd_args;
 } else {
