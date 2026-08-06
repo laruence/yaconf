@@ -446,8 +446,9 @@ static int php_yaconf_parse_ini_file(const char *filename, zval *result) /* {{{ 
 #if PHP_VERSION_ID >= 80100
 		zend_destroy_file_handle(&fh);
 #endif
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 /* }}} */
 
