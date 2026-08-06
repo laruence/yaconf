@@ -14,7 +14,7 @@ Yaconf is a configuration container. It parses INI files and stores the result i
 
 Yaconf uses an **immutable data + Copy-on-Write** design rather than shared memory (shmget/mmap). Parsed configs are stored in persistent `zend_array`s marked `IS_ARRAY_IMMUTABLE` — and all keys are interned as permanent strings. Because the hash tables are immutable, PHP-FPM workers forked from the master process share the **same physical memory pages** via the OS kernel's COW mechanism. As long as the configuration doesn't change, memory is allocated only once — no matter how many workers are running. When a config file is modified and Yaconf reloads it (in non-ZTS mode), the kernel copies only the changed pages on write, isolating the new config from the old.
 
-> **⚠ ZTS (Thread-Safe) builds**: Yaconf does **not** load configurations in ZTS builds. The directory scan logic and `yaconf.check_delay` are both skipped at compile time. Use Yaconf with non-ZTS (NTS) PHP only.
+> **⚠ ZTS (Thread-Safe) builds**: Yaconf loads configurations at startup as usual, but automatic reloading is not available (`yaconf.check_delay` is NTS-only). Restart PHP to pick up config changes.
 
 ### When to use Yaconf
 
@@ -59,7 +59,7 @@ $ make && make install
 | INI Setting | Default | Description |
 |---|---|---|
 | `yaconf.directory` | `""` | Path to the directory where all INI configuration files are placed |
-| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by the directory's mtime). Set to `0` to disable automatic reloading — you will need to restart PHP to reload configurations. **Only available in non-ZTS builds.** In ZTS builds, Yaconf does not load configurations at all (the directory scan and `check_delay` INI entry are both skipped at compile time). |
+| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by the directory's mtime). Set to `0` to disable automatic reloading — you will need to restart PHP to reload configurations. **Only available in non-ZTS builds.** In ZTS builds, configurations are still loaded at startup, but automatic reloading is disabled — restart PHP to pick up changes. |
 
 ## Constants
 
