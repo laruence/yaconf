@@ -392,7 +392,7 @@ static void php_yaconf_ini_parser_cb(zval *key, zval *value, zval *index, int ca
 			}
 
 			php_yaconf_trim_key(&section, &sec_len);
-			if ((parent = zend_hash_str_find(Z_ARRVAL_P(target), section, sec_len))) {
+			if ((parent = zend_symtable_str_find(Z_ARRVAL_P(target), section, sec_len))) {
 				if (Z_TYPE_P(parent) == IS_ARRAY) {
 					php_yaconf_hash_copy(Z_ARRVAL(active_ini_file_section), Z_ARRVAL_P(parent));
 				} else {

@@ -61,6 +61,7 @@
 		    <file name="021.phpt" role="test" />
     <file name="022.phpt" role="test" />
     <file name="023.phpt" role="test" />
+    <file name="024.phpt" role="test" />
 	    <file name="yaconf_server.inc" role="test" />
     <dir name="inis">
      <dir name="002">
@@ -128,6 +129,9 @@
 	     </dir>
      <dir name="023">
       <file name="prefix.ini" role="test" />
+     </dir>
+     <dir name="024">
+      <file name="inherit.ini" role="test" />
      </dir>
     </dir>
    </dir>
