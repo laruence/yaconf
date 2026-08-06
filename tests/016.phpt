@@ -1,8 +1,8 @@
 --TEST--
 Yaconf dot notation edge cases
-NOTE: When a dot-separated path hits a non-array intermediate node, php_yaconf_get()
-returns that intermediate value — NOT null. This means the default parameter is
-never reached in that case.
+NOTE: When a dot-separated path goes deeper than an existing scalar value,
+php_yaconf_get() treats the requested key as not found and returns the
+default value (NULL by default).
 --CREDITS--
 Jarvis (AI assistant to Laruence)
 --SKIPIF--
@@ -18,7 +18,7 @@ var_dump(Yaconf::has("dot"));
 var_dump(Yaconf::has("no_such_root"));
 
 // Access scalar as intermediate node: "dot.scalar.X" where dot.scalar = "hello"
-// The scalar value IS returned (the default is NOT applied)
+// The requested key does not exist, so the default is applied
 var_dump(Yaconf::get("dot.scalar.nope"));
 var_dump(Yaconf::get("dot.scalar.nope", "fallback"));
 
@@ -39,8 +39,8 @@ var_dump(Yaconf::has("dot..gap"));
 --EXPECTF--
 bool(true)
 bool(false)
-string(5) "hello"
-string(5) "hello"
+NULL
+string(8) "fallback"
 string(5) "third"
 string(4) "zero"
 string(3) "one"

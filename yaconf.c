@@ -464,7 +464,7 @@ PHP_YACONF_API zval *php_yaconf_get(zend_string *name) /* {{{ */ {
 			len = ZSTR_LEN(name);
 			do {
 				if (!(pzval = zend_symtable_str_find(target, seg, delim - seg)) || Z_TYPE_P(pzval) != IS_ARRAY) {
-					return pzval;
+					return NULL;
 				}
 				target = Z_ARRVAL_P(pzval);
 				len -= (delim - seg) + 1;

@@ -59,6 +59,8 @@
     <file name="019.phpt" role="test" />
 	    <file name="020.phpt" role="test" />
 		    <file name="021.phpt" role="test" />
+    <file name="022.phpt" role="test" />
+    <file name="023.phpt" role="test" />
 	    <file name="yaconf_server.inc" role="test" />
     <dir name="inis">
      <dir name="002">
@@ -124,6 +126,9 @@
 	     <dir name="021">
 	      <file name="rinit.ini" role="test" />
 	     </dir>
+     <dir name="023">
+      <file name="prefix.ini" role="test" />
+     </dir>
     </dir>
    </dir>
   </dir> 
