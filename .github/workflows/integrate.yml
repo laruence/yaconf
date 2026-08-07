@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ["7.2", "8.0", "8.5"]
+        php: ["8.0", "8.5"]
         ts: ["nts"]
         include:
           - php: "8.5"
