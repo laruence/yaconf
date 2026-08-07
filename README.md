@@ -1,6 +1,6 @@
 # Yaconf - Yet Another Configuration Container
 
-[![Build status](https://ci.appveyor.com/api/projects/status/hbrmch6np854b4b5/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yaconf/branch/master) [![Build Status](https://github.com/laruence/yaconf/workflows/integrate/badge.svg)](https://github.com/laruence/yaconf/actions?query=workflow%3Aintegrate)
+[![AppVeyor](https://ci.appveyor.com/api/projects/status/hbrmch6np854b4b5/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yaconf/branch/master) [![Linux](https://github.com/laruence/yaconf/actions/workflows/linux.yml/badge.svg?branch=master)](https://github.com/laruence/yaconf/actions/workflows/linux.yml) [![Windows](https://github.com/laruence/yaconf/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/laruence/yaconf/actions/workflows/windows.yml)
 
 A PHP Persistent Configuration Container
 
