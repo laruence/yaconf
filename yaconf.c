@@ -107,7 +107,14 @@ static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	ZVAL_ARR(zv, ht);
 	/* make immutable array */
 #if PHP_VERSION_ID < 70300
+#if PHP_VERSION_ID < 70200
+	/* SEPARATE_ARRAY checks the zval's IMMUTABLE bit here, without it the
+	   shared array's refcount is decremented on the first write */
+	Z_TYPE_FLAGS_P(zv) = IS_TYPE_COPYABLE | IS_TYPE_IMMUTABLE;
+#else
+	/* 7.2: a COPYABLE-only zval already is Z_IMMUTABLE */
 	Z_TYPE_FLAGS_P(zv) = IS_TYPE_COPYABLE;
+#endif
 	GC_REFCOUNT(ht) = 2;
 	GC_FLAGS(ht) |= IS_ARRAY_IMMUTABLE;
 	ht->u.flags |= HASH_FLAG_STATIC_KEYS;
@@ -717,13 +724,13 @@ PHP_METHOD(yaconf, __debug_info) {
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S", &name) == FAILURE) {
 		return;
-	} 
+	}
 
 	val = php_yaconf_get(name);
 	if (val) {
 		zval zv;
 		char address[sizeof(void*) * 2 + 3];
-		int len;
+		size_t len;
 
 		array_init(return_value);
 		ZVAL_STR(&zv, name);
@@ -732,7 +739,7 @@ PHP_METHOD(yaconf, __debug_info) {
 		Z_TRY_ADDREF(zv);
 
 		/* stored values are interned strings or immutable arrays only, Z_PTR_P gets the value's address */
-		len = snprintf(address, sizeof(address), "%p", Z_PTR_P(val)); /* can not use zend_strpprintf as it only exported after PHP-7.2 */
+		len = sprintf(address, "%p", Z_PTR_P(val));
 		ZVAL_STR(&zv, zend_string_init(address, len, 0));
 
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "address", sizeof("address") - 1, &zv);
