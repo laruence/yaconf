@@ -1,77 +1,56 @@
 --TEST--
-Yaconf RINIT hot-reload on INI change
---CREDITS--
-Jarvis (AI assistant to Laruence)
+Yaconf MINIT: name conflict between a config file and a same-named directory is fatal
 --SKIPIF--
 <?php
 if (!extension_loaded("yaconf")) print "skip";
-if (substr(PHP_OS, 0, 3) == 'WIN') die("skip doesn't work on Windows");
-if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supported in ZTS");
+if (substr(PHP_OS, 0, 3) == 'WIN') die("skip POSIX test");
+if (!file_exists(dirname(__DIR__) . "/modules/yaconf.so")) die("skip yaconf.so not built");
 ?>
 --FILE--
 <?php
-// NOTE: Yaconf checks directory mtime in RINIT. When check_delay=0,
-//       every request triggers re-scan if the directory mtime changed.
-//       This test starts a built-in server, verifies initial config,
-//       modifies an INI file + touches the dir, and verifies new values
-//       are picked up on the next request without server restart.
-
-include "yaconf_server.inc";
+// NOTE: MINIT parses the directory before any script runs, so the conflicting
+//       entries must exist before the child php process starts
 
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "020";
-
-define("YACONF_TEST_PORT", yaconf_server_start($inidir));
-define("YACONF_TEST_URL", "http://" . YACONF_SERVER_HOSTNAME . ":" . YACONF_TEST_PORT . "/index.php?key=");
-
-function fetch($suffix) {
-    $ctx = stream_context_create(["http" => ["timeout" => 3]]);
-    return file_get_contents(YACONF_TEST_URL . urlencode($suffix), false, $ctx);
+if (!is_dir($inidir . DIRECTORY_SEPARATOR . "foo")) {
+    mkdir($inidir . DIRECTORY_SEPARATOR . "foo", 0755, true);
 }
+file_put_contents($inidir . DIRECTORY_SEPARATOR . "foo.ini", "a=1\n");
+file_put_contents($inidir . DIRECTORY_SEPARATOR . "foo" . DIRECTORY_SEPARATOR . "x.ini", "b=2\n");
 
-// NOTE: INI key uses 3-level dot syntax: filename.section.key
-//       rinit.ini → section [rinit] → key "foo" → "rinit.rinit.foo"
-
-/* 1. Verify initial config */
-echo fetch("rinit.rinit.foo");
-echo fetch("rinit.rinit.number");
-echo fetch("rinit.rinit.new_key");
-
-/* 2. Wait so subsequent touch() advances to a new second */
-sleep(1);
-
-/* 3. Modify the INI file: change existing value + add new key */
-$inifile = $inidir . DIRECTORY_SEPARATOR . "rinit.ini";
-$content = file_get_contents($inifile);
-$content = str_replace('foo="before"', 'foo="after"', $content);
-/* Append new key under correct section */
-if (strpos($content, 'rinit_new_key') === false) {
-    $content = rtrim($content) . "\nrinit_new_key=\"added at runtime\"\n";
+$php = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
+/* TEST_PHP_ARGS carries run-tests.php options (e.g. --show-diff) on CI,
+ * which the PHP CLI does not understand; skip it there, like yaconf_server.inc */
+$cmd_args = NULL;
+if (!(bool)getenv('TRAVIS') && !(bool)getenv('GITHUB')) {
+    $cmd_args = getenv('TEST_PHP_ARGS');
 }
-file_put_contents($inifile, $content);
+$cmd_args = " -d extension=" . dirname(__DIR__) . "/modules/yaconf.so " . $cmd_args;
+$cmd_args .= " -d yaconf.directory=" . $inidir;
 
-/* 4. Touch the directory so mtime changes (RINIT compares directory mtime) */
-clearstatcache();
-touch($inidir);
+/* empty script body: the error is emitted at startup, before any script */
+$cmd = "exec {$php} -n {$cmd_args} -r ''";
 
-/* 5. Verify updated config is picked up on next request */
-echo fetch("rinit.rinit.foo");
-echo fetch("rinit.rinit.number");
-echo fetch("rinit.rinit.rinit_new_key");
-
+$proc = proc_open($cmd, array(1 => array("pipe", "w"), 2 => array("pipe", "w")), $pipes);
+if (!is_resource($proc)) {
+    die("failed to spawn child php");
+}
+echo stream_get_contents($pipes[1]);
+echo stream_get_contents($pipes[2]);
+fclose($pipes[1]);
+fclose($pipes[2]);
+$status = proc_close($proc);
+echo "exit=$status\n";
 ?>
 --CLEAN--
 <?php
-include 'yaconf_server.inc';
-yaconf_server_cleanup();
-// Restore INI to original state so subsequent test runs start clean
-$inifile = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "020" . DIRECTORY_SEPARATOR . "rinit.ini";
-$original = "[rinit]\nfoo=\"before\"\nnumber=42\n";
-file_put_contents($inifile, $original);
+$inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "020";
+@unlink($inidir . DIRECTORY_SEPARATOR . "foo.ini");
+@unlink($inidir . DIRECTORY_SEPARATOR . "foo" . DIRECTORY_SEPARATOR . "x.ini");
+@rmdir($inidir . DIRECTORY_SEPARATOR . "foo");
+@rmdir($inidir);
 ?>
 --EXPECTF--
-string(6) "before"
-string(2) "42"
-NULL
-string(5) "after"
-string(2) "42"
-string(16) "added at runtime"
+Fatal error: yaconf: name conflict between config file 'foo.ini' and a directory with the same name in Unknown on line 0
+%A
+exit=255

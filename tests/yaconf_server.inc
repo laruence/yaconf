@@ -11,12 +11,15 @@ function yaconf_server_start($inidir, $port = 8965, $check_delay = 0) {
 		mkdir($doc_root, 0755, true);
 	}
 
-	/* Simple script: returns config value for a given key */
+	/* serves config values by key, and stored-value addresses via __debug_info */
 	file_put_contents($doc_root . DIRECTORY_SEPARATOR . "index.php", <<<'PHP'
 <?php
 if (isset($_GET['key'])) {
 	$val = Yaconf::get($_GET['key']);
 	var_dump($val);
+} elseif (isset($_GET['addr'])) {
+	$info = Yaconf::__debug_info($_GET['addr']);
+	echo $info ? $info["address"] . "\n" : "NULL\n";
 } else {
 	echo "yaconf_server_ready\n";
 }

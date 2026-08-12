@@ -36,7 +36,7 @@ extern zend_module_entry yaconf_module_entry;
 #define YACONF_G(v) (yaconf_globals.v)
 #endif
 
-#define PHP_YACONF_VERSION  "1.1.4-dev"
+#define PHP_YACONF_VERSION  "1.2.0"
 
 #ifdef YACONF_DEBUG
 #undef YACONF_DEBUG
@@ -65,36 +65,9 @@ PHP_GINIT_FUNCTION(yaconf);
 
 extern ZEND_DECLARE_MODULE_GLOBALS(yaconf);
 
-/* C API for use by other PHP extensions.
- *
- * Both functions may be called any time after yaconf's MINIT has run; an
- * extension linking against this API must ensure yaconf is loaded before
- * itself (e.g. via ZEND_MOD_REQUIRED("yaconf") in its module dependencies).
- *
- * php_yaconf_get(name):
- *   Looks up `name` in the parsed configuration containers. Dots separate
- *   nesting levels ("foo.bar.baz"); numeric segments are looked up with
- *   symtable semantics, the same way INI keys are stored.
- *
- *   Returns a BORROWED pointer to the persistent zval held in yaconf's
- *   immutable containers, or NULL if the key does not exist. The caller
- *   must NOT modify, refcount or destroy the returned zval. If the value
- *   must be kept or handed on (e.g. to userland), copy it with ZVAL_COPY/
- *   ZVAL_DUP - the stored values are either immutable (IS_ARRAY_IMMUTABLE)
- *   or permanent interned strings, so copying is cheap and safe.
- *
- *   In NTS builds the containers are swapped and freed by the hot-reload
- *   in RINIT, so a returned pointer is only valid until the next reload:
- *   never cache it across requests, look the value up every time. In ZTS
- *   builds configurations are loaded once at MINIT and never reloaded,
- *   but the same rules apply.
- *
- *   `name` is only read; it does not need to be permanent/interned.
- *
- * php_yaconf_has(name):
- *   Returns non-zero if php_yaconf_get(name) would return a value,
- *   0 otherwise.
- */
+/* C API for other extensions, call after yaconf's MINIT (depends on yaconf).
+ * php_yaconf_get() returns a borrowed pointer to the stored zval or NULL:
+ * copy it (ZVAL_COPY) before use and never cache it, hot reload may replace it. */
 BEGIN_EXTERN_C()
 PHP_YACONF_API zval *php_yaconf_get(zend_string *name);
 PHP_YACONF_API int php_yaconf_has(zend_string *name);

@@ -10,11 +10,11 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2026-08-06</date>
- <time>15:05:00</time>
+ <date>2026-08-12</date>
+ <time>16:40:43</time>
  <version>
-  <release>1.1.3</release>
-  <api>1.1.3</api>
+  <release>1.2.0</release>
+  <api>1.2.0</api>
  </version>
  <stability>
   <release>stable</release>
@@ -22,11 +22,11 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-  - Fixed memory leak with PHP 8.1
-  - Fixed garbage value being returned when an INI file is unreadable
-  - Fixed Yaconf::get() with paths deeper than a scalar value
-  - Fixed section inheritance from numeric section names
-  - Fixed fatal error and a memory leak in the startup scan
+  - Added sub-directory support: INI files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name ('sub/x.ini' as 'sub.x')
+  - Added hot-reload tracking of sub-directories
+  - Startup now fails with a fatal error on a name conflict between an INI file and a same-named directory
+  - Fixed memory leaks when a dot-notation key overrides a scalar value
+  - Changed Yaconf::__debug_info() to report the stored value's address
  </notes>
  <contents> 
   <dir name="/"> 
@@ -61,12 +61,10 @@
     <file name="017.phpt" role="test" />
     <file name="018.phpt" role="test" />
     <file name="019.phpt" role="test" />
-	    <file name="020.phpt" role="test" />
-		    <file name="021.phpt" role="test" />
+    <file name="020.phpt" role="test" />
+    <file name="021.phpt" role="test" />
     <file name="022.phpt" role="test" />
     <file name="023.phpt" role="test" />
-    <file name="024.phpt" role="test" />
-    <file name="025.phpt" role="test" />
 	    <file name="yaconf_server.inc" role="test" />
     <dir name="inis">
      <dir name="002">
@@ -111,32 +109,37 @@
       <file name="b.ini" role="test" />
      </dir>
      <dir name="014">
-      <file name="debug.ini" role="test" />
+      <file name="foo.ini" role="test" />
+      <dir name="bar">
+       <file name="x.ini" role="test" />
+       <dir name="deep">
+        <file name="y.ini" role="test" />
+       </dir>
+      </dir>
      </dir>
      <dir name="015">
       <file name="defaults.ini" role="test" />
      </dir>
      <dir name="016">
       <file name="dot.ini" role="test" />
+      <file name="prefix.ini" role="test" />
      </dir>
      <dir name="017">
       <file name="sections.ini" role="test" />
+      <file name="inherit.ini" role="test" />
      </dir>
      <dir name="018">
       <file name="types.ini" role="test" />
      </dir>
      <dir name="019" />
-	     <dir name="020">
-	      <file name="rinit.ini" role="test" />
-	     </dir>
-	     <dir name="021">
-	      <file name="rinit.ini" role="test" />
-	     </dir>
-     <dir name="023">
-      <file name="prefix.ini" role="test" />
+     <dir name="021">
+      <file name="rinit.ini" role="test" />
      </dir>
-     <dir name="024">
-      <file name="inherit.ini" role="test" />
+     <dir name="023">
+      <file name="root.ini" role="test" />
+      <dir name="sub">
+       <file name="child.ini" role="test" />
+      </dir>
      </dir>
     </dir>
    </dir>
@@ -155,6 +158,26 @@
  <providesextension>yaconf</providesextension>
  <extsrcrelease />
  <changelog>
+  <release>
+   <date>2026-08-12</date>
+   <version>
+    <release>1.2.0</release>
+    <api>1.2.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
+   <notes>
+    - Added sub-directory support: INI files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name ('sub/x.ini' as 'sub.x')
+    - Added hot-reload tracking of sub-directories
+    - Startup now fails with a fatal error on a name conflict between an INI file and a same-named directory
+    - Fixed memory leaks when a dot-notation key overrides a scalar value
+    - Changed Yaconf::__debug_info() to report the stored value's address
+   </notes>
+  </release>
+
   <release>
    <date>2026-08-06</date>
    <version>

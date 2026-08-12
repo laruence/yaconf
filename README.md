@@ -33,7 +33,8 @@ Yaconf is for static configuration. For runtime caching — database query resul
 - Fast, light
 - Zero-copy when accessing configurations
 - Supports sections and section inheritance (up to 16 levels deep)
-- Configurations reload automatically after changes (non-ZTS only)
+- Supports sub-directories of arbitrary depth (up to 16 levels) — `sub/x.ini` is addressed as `"sub.x"` (since 1.2.0)
+- Configurations reload automatically after changes (non-ZTS only), including sub-directories
 - C API exported for use by other PHP extensions
 
 ## Install
@@ -58,8 +59,8 @@ $ make && make install
 
 | INI Setting | Default | Description |
 |---|---|---|
-| `yaconf.directory` | `""` | Path to the directory where all INI configuration files are placed |
-| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by the directory's mtime). Set to `0` to disable automatic reloading — you will need to restart PHP to reload configurations. **Only available in non-ZTS builds.** In ZTS builds, configurations are still loaded at startup, but automatic reloading is disabled — restart PHP to pick up changes. |
+| `yaconf.directory` | `""` | Path to the directory where all INI configuration files are placed. Sub-directories are loaded recursively (up to 16 levels deep). |
+| `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by comparing directory mtimes — first the configured directory, then each tracked sub-directory). Set to `0` to check on every request. **Only available in non-ZTS builds.** In ZTS builds, configurations are still loaded at startup, but automatic reloading is disabled — restart PHP to pick up changes. |
 
 ## Constants
 
@@ -75,7 +76,7 @@ All Yaconf methods are `static` — you call them on the class directly, not on 
 static mixed Yaconf::get(string $name, mixed $default = null)
 ```
 
-Fetches a configuration value by its `$name`. The `$name` uses dot notation to traverse nested keys (e.g. `"foo.name"`, `"foo.features.1"`, `"foo.features.plus"`). The maximum nesting depth is 64.
+Fetches a configuration value by its `$name`. The `$name` uses dot notation to traverse nested keys (e.g. `"foo.name"`, `"foo.features.1"`, `"sub.x.role"`). The maximum nesting depth is 64.
 
 Returns the configuration value on success, or `$default` (which defaults to `null`) if the key is not found.
 
@@ -116,7 +117,7 @@ yaconf.directory=/tmp/yaconf
 
 ### INI Files
 
-Yaconf only loads files with the `.ini` extension from the configured directory.
+Yaconf only loads files with the `.ini` extension from the configured directory — and, recursively, from its sub-directories (up to 16 levels deep). A sub-directory acts as a namespace: its name becomes a key level, and the files (and further sub-directories) inside it nest below that key.
 
 Assuming there are two files in `/tmp/yaconf`:
 
@@ -219,9 +220,51 @@ array(2) {
 
 The `children` section inherits values from the `base` section, and can override the values it wants to change.
 
+### Sub-directories
+
+> Sub-directory support is available since 1.2.0.
+
+Now assume `/tmp/yaconf` also contains sub-directories:
+
+```
+/tmp/yaconf/
+├── foo.ini
+├── bar.ini
+└── sub/
+    ├── x.ini        ; role="assistant"
+    └── deep/
+        └── y.ini    ; level="three"
+```
+
+Each sub-directory becomes a key level; files inside it are addressed with the directory name as a prefix — at any depth:
+
+```php
+$ php -r 'var_dump(Yaconf::get("sub.x.role"));'
+// string(9) "assistant"
+
+$ php -r 'var_dump(Yaconf::get("sub.deep.y.level"));'
+// string(5) "three"
+```
+
+Fetching a directory name alone returns the whole directory as an array:
+
+```php
+$ php -r 'var_dump(array_keys(Yaconf::get("sub")));'
+/*
+array(2) {
+  [0]=>
+  string(4) "deep"
+  [1]=>
+  string(1) "x"
+}
+*/
+```
+
+A `.ini` file and a directory with the same name would claim the same key, so Yaconf refuses to start with a fatal error if both exist.
+
 ### phpinfo() Output
 
-When `yaconf.check_delay` is non-zero, Yaconf adds a block to `phpinfo()` showing the directory being watched, the configured check delay, and a list of all currently loaded `.ini` files with their last modification time.
+When `yaconf.check_delay` is non-zero, Yaconf adds a block to `phpinfo()` showing the directory being watched, the configured check delay, a list of all currently loaded `.ini` files (with their path relative to `yaconf.directory`) and their last modification time, plus a list of all tracked sub-directories.
 
 ## License
 

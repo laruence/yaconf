@@ -26,5 +26,7 @@ c.ini => %s
 d.ini => %s
 
 
+config sub-directory => mtime
+
 Directive => Local Value => Master Value
 %a

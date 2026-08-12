@@ -1,16 +1,15 @@
 --TEST--
-Yaconf dot notation edge cases
-NOTE: When a dot-separated path goes deeper than an existing scalar value,
-php_yaconf_get() treats the requested key as not found and returns the
-default value (NULL by default).
---CREDITS--
-Jarvis (AI assistant to Laruence)
+Yaconf dot notation lookup edge cases
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
 yaconf.directory={PWD}/inis/016
 --FILE--
 <?php
+// inis/016 layout:
+//   dot.ini     scalar, valid.first.second, numbers[]/numbers.key_01
+//   prefix.ini  scalar, deep.a.b, list[], [section] key/num
+
 // Root key exists
 var_dump(Yaconf::has("dot"));
 
@@ -35,6 +34,25 @@ var_dump(Yaconf::get("dot.numbers")["key_01"]);
 // Consecutive dots — empty segment resolves to nothing, returns null
 var_dump(Yaconf::get("dot..gap"));
 var_dump(Yaconf::has("dot..gap"));
+
+// Control cases: plain lookups on prefix.ini
+var_dump(Yaconf::get("prefix.scalar"));
+var_dump(Yaconf::get("prefix.section.key"));
+var_dump(Yaconf::get("prefix.section.num"));
+var_dump(Yaconf::get("prefix.deep.a.b"));
+var_dump(Yaconf::get("prefix.list.0"));
+var_dump(Yaconf::get("prefix.section.nope"));
+var_dump(Yaconf::get("prefix.nope.deep"));
+
+// A path that goes DEEPER than an existing scalar value does not exist,
+// get() returns the default and has() returns false
+var_dump(Yaconf::get("prefix.scalar.deeper"));
+var_dump(Yaconf::get("prefix.scalar.deeper", "fallback"));
+var_dump(Yaconf::has("prefix.scalar.deeper"));
+var_dump(Yaconf::get("prefix.section.key.deeper"));
+var_dump(Yaconf::get("prefix.section.num.deeper"));
+var_dump(Yaconf::get("prefix.deep.a.b.deeper"));
+var_dump(Yaconf::get("prefix.list.0.deeper"));
 ?>
 --EXPECTF--
 bool(true)
@@ -47,3 +65,17 @@ string(3) "one"
 string(3) "yes"
 NULL
 bool(false)
+string(5) "hello"
+string(5) "value"
+string(2) "42"
+string(4) "leaf"
+string(1) "a"
+NULL
+NULL
+NULL
+string(8) "fallback"
+bool(false)
+NULL
+NULL
+NULL
+NULL

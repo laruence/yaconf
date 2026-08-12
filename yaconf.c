@@ -34,6 +34,7 @@ ZEND_DECLARE_MODULE_GLOBALS(yaconf);
 
 static HashTable *ini_containers;
 static HashTable *parsed_ini_files;
+static HashTable *parsed_ini_dirs;
 static zval active_ini_file_section;
 
 zend_class_entry *yaconf_ce;
@@ -42,9 +43,18 @@ static void php_yaconf_zval_persistent(zval *zv, zval *rv);
 static void php_yaconf_zval_dtor(zval *pzval);
 
 typedef struct _yaconf_filenode {
-	zend_string *filename;
+	zend_string *filename;   /* relative path from yaconf.directory */
 	time_t mtime;
 } yaconf_filenode;
+
+typedef struct _yaconf_dirnode {
+	zend_string *dirname;    /* relative path from yaconf.directory */
+	time_t mtime;
+	HashTable *container;    /* borrowed pointer into the ini_containers tree */
+} yaconf_dirnode;
+
+/* guards against symlink loops recursing the scan until the C stack overflows */
+#define YACONF_MAX_DIR_DEPTH 16
 
 #define PALLOC_HASHTABLE(ht) do { \
 	(ht) = (HashTable*)pemalloc(sizeof(HashTable), 1); \
@@ -285,6 +295,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 			}
 
 			if (Z_TYPE_P(pzval) != IS_ARRAY) {
+				php_yaconf_zval_dtor(pzval);
 				php_yaconf_hash_init(pzval, 8);
 			}
 
@@ -324,6 +335,7 @@ static void php_yaconf_simple_parser_cb(zval *key, zval *value, zval *index, int
 				}
 
 				if (Z_TYPE_P(parent) != IS_ARRAY) {
+					php_yaconf_zval_dtor(parent);
 					php_yaconf_hash_init(parent, 8);
 					php_yaconf_hash_init(&rv, 8);
 					pzval = php_yaconf_symtable_update(Z_ARRVAL_P(parent), seg, len, &rv);
@@ -486,6 +498,183 @@ PHP_YACONF_API int php_yaconf_has(zend_string *name) /* {{{ */ {
 }
 /* }}} */
 
+static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, size_t relpath_len, HashTable *container, int is_initial, int depth);
+
+/* load one ".ini" file, keyed by the basename without the ".ini" suffix */
+static void php_yaconf_handle_file(const char *fullpath, const char *relpath, size_t relpath_len, const char *name, size_t key_len, HashTable *container, time_t mtime, int is_initial) /* {{{ */ {
+	yaconf_filenode *node;
+	zval result;
+
+	/* name clash with a same-named directory */
+	if (relpath_len > 4 && zend_hash_str_find_ptr(parsed_ini_dirs, relpath, relpath_len - 4)) {
+		php_error(is_initial ? E_ERROR : E_WARNING,
+				"yaconf: name conflict between config file '%s' and a directory with the same name", relpath);
+		return;
+	}
+
+	node = (yaconf_filenode*)zend_hash_str_find_ptr(parsed_ini_files, relpath, relpath_len);
+	if (node && node->mtime == mtime) {
+		return; /* unchanged */
+	}
+
+	if (!php_yaconf_parse_ini_file(fullpath, &result)) {
+		return;
+	}
+
+	/* symtable_update replaces (and destroys) any previous value for this key */
+	php_yaconf_symtable_update(container, (char*)name, key_len, &result);
+
+	if (node) {
+		node->mtime = mtime;
+	} else {
+		yaconf_filenode n;
+		n.filename = zend_string_init(relpath, relpath_len, 1);
+		n.mtime = mtime;
+		zend_hash_update_mem(parsed_ini_files, n.filename, &n, sizeof(yaconf_filenode));
+	}
+}
+/* }}} */
+
+/* link an immutable persistent container for a sub-directory into the parent, then recurse */
+static void php_yaconf_handle_directory(const char *fullpath, const char *relpath, size_t relpath_len, const char *name, size_t name_len, HashTable *container, time_t mtime, int is_initial, int depth) /* {{{ */ {
+	yaconf_dirnode *node;
+	char file_relpath[MAXPATHLEN + 8];
+	size_t file_relpath_len;
+
+	/* name clash with a same-named ".ini" file */
+	file_relpath_len = snprintf(file_relpath, sizeof(file_relpath), "%s.ini", relpath);
+	if (zend_hash_str_find_ptr(parsed_ini_files, file_relpath, file_relpath_len)) {
+		php_error(is_initial ? E_ERROR : E_WARNING,
+				"yaconf: name conflict between config directory '%s' and a file with the same name", relpath);
+		return;
+	}
+
+	if ((node = (yaconf_dirnode*)zend_hash_str_find_ptr(parsed_ini_dirs, relpath, relpath_len)) != NULL) {
+		/* already tracked */
+		return;
+	}
+
+	{
+		zval dirzv;
+		HashTable *dir_ht;
+		yaconf_dirnode n;
+
+		php_yaconf_hash_init(&dirzv, 8);
+		dir_ht = Z_ARRVAL(dirzv);
+
+		php_yaconf_symtable_update(container, (char*)name, name_len, &dirzv);
+
+		n.dirname = zend_string_init(relpath, relpath_len, 1);
+		n.mtime = mtime;
+		n.container = dir_ht;
+		zend_hash_update_mem(parsed_ini_dirs, n.dirname, &n, sizeof(yaconf_dirnode));
+
+		php_yaconf_scan_directory(fullpath, relpath, relpath_len, dir_ht, is_initial, depth + 1);
+	}
+}
+/* }}} */
+
+/* recursively load ".ini" files and sub-directories into container, relpath is relative to yaconf.directory ("" for the root) */
+static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, size_t relpath_len, HashTable *container, int is_initial, int depth) /* {{{ */ {
+	int ndir;
+	struct dirent **namelist;
+	uint32_t i;
+
+	if (depth > YACONF_MAX_DIR_DEPTH) {
+		php_error(is_initial ? E_ERROR : E_WARNING,
+				"yaconf: directory nesting deeper than %d levels at '%s', skipping", YACONF_MAX_DIR_DEPTH, dirpath);
+		return 0;
+	}
+
+	if ((ndir = php_scandir(dirpath, &namelist, 0, php_alphasort)) <= 0) {
+		return ndir;
+	}
+
+	for (i = 0; i < (uint32_t)ndir; i++) {
+		char *name = namelist[i]->d_name;
+		size_t name_len = strlen(name);
+		char fullpath[MAXPATHLEN];
+		char sub_relpath[MAXPATHLEN];
+		size_t sub_relpath_len;
+		zend_stat_t sb = {0};
+
+		if (name[0] == '.' && (name_len == 1 || (name_len == 2 && name[1] == '.'))) {
+			free(namelist[i]);
+			continue;
+		}
+
+		snprintf(fullpath, sizeof(fullpath), "%s%c%s", dirpath, DEFAULT_SLASH, name);
+		if (VCWD_STAT(fullpath, &sb) != 0) {
+			/* vanished between scandir() and stat() */
+			free(namelist[i]);
+			continue;
+		}
+
+		if (relpath_len) {
+			sub_relpath_len = snprintf(sub_relpath, sizeof(sub_relpath), "%s/%s", relpath, name);
+		} else {
+			sub_relpath_len = snprintf(sub_relpath, sizeof(sub_relpath), "%s", name);
+		}
+
+		if (S_ISDIR(sb.st_mode)) {
+			php_yaconf_handle_directory(fullpath, sub_relpath, sub_relpath_len, name, name_len, container, sb.st_mtime, is_initial, depth);
+		} else if (S_ISREG(sb.st_mode)) {
+			char *dot;
+			if ((dot = strrchr(name, '.')) && strcmp(dot, ".ini") == 0) {
+				php_yaconf_handle_file(fullpath, sub_relpath, sub_relpath_len, name, (size_t)(dot - name), container, sb.st_mtime, is_initial);
+			}
+		}
+		free(namelist[i]);
+	}
+	free(namelist);
+	return ndir;
+}
+/* }}} */
+
+/* stat every tracked sub-directory and re-scan the changed ones, changes inside a sub-directory do not bump the root's mtime */
+static void php_yaconf_check_directories(const char *root) /* {{{ */ {
+	yaconf_dirnode **snapshot;
+	yaconf_dirnode *node;
+	uint32_t count, i, n = 0;
+
+	if (!parsed_ini_dirs || (count = zend_hash_num_elements(parsed_ini_dirs)) == 0) {
+		return;
+	}
+
+	/* re-scanning can add new dirnodes, so iterate over a snapshot */
+	snapshot = (yaconf_dirnode**)emalloc(count * sizeof(yaconf_dirnode*));
+	ZEND_HASH_FOREACH_PTR(parsed_ini_dirs, node) {
+		snapshot[n++] = node;
+	} ZEND_HASH_FOREACH_END();
+
+	for (i = 0; i < n; i++) {
+		char fullpath[MAXPATHLEN];
+		zend_stat_t sb = {0};
+		int depth = 1;
+		const char *p;
+
+		node = snapshot[i];
+		for (p = ZSTR_VAL(node->dirname); *p; p++) {
+			if (*p == '/') {
+				depth++;
+			}
+		}
+
+		snprintf(fullpath, sizeof(fullpath), "%s%c%s", root, DEFAULT_SLASH, ZSTR_VAL(node->dirname));
+		if (VCWD_STAT(fullpath, &sb) != 0 || !S_ISDIR(sb.st_mode)) {
+			/* removed, keep serving the stale config */
+			continue;
+		}
+
+		if (sb.st_mtime != node->mtime) {
+			node->mtime = sb.st_mtime;
+			php_yaconf_scan_directory(fullpath, ZSTR_VAL(node->dirname), ZSTR_LEN(node->dirname), node->container, 0, depth);
+		}
+	}
+	efree(snapshot);
+}
+/* }}} */
+
 /** {{{ proto public Yaconf::get(string $name, $default = NULL)
 */
 PHP_METHOD(yaconf, get) {
@@ -541,7 +730,8 @@ PHP_METHOD(yaconf, __debug_info) {
 		ZVAL_STR(&zv, name);
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "key", sizeof("key") - 1, &zv);
 		Z_TRY_ADDREF(zv);
-		len = spprintf(&address, 0, "%p", val); /* can not use zend_strpprintf as it only exported after PHP-7.2 */
+		/* stored values are interned strings or immutable arrays only, Z_PTR_P gets the value's address */
+		len = spprintf(&address, 0, "%p", Z_PTR_P(val)); /* can not use zend_strpprintf as it only exported after PHP-7.2 */
 		ZVAL_STR(&zv, zend_string_init(address, len, 0)); 
 		efree(address);
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "address", sizeof("address") - 1, &zv);
@@ -586,7 +776,6 @@ PHP_GINIT_FUNCTION(yaconf)
 PHP_MINIT_FUNCTION(yaconf)
 {
 	const char *dirname;
-	size_t dirlen;
 	zend_class_entry ce;
 	zend_stat_t dir_sb = {0};
 
@@ -596,62 +785,31 @@ PHP_MINIT_FUNCTION(yaconf)
 
 	yaconf_ce = zend_register_internal_class_ex(&ce, NULL);
 
-	if ((dirname = YACONF_G(directory)) && (dirlen = strlen(dirname)) 
+	if ((dirname = YACONF_G(directory)) && strlen(dirname)
 #ifndef ZTS
 			&& !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)
 #endif
 			) {
-		int ndir;
-		struct dirent **namelist;
-		char *p, ini_file[MAXPATHLEN];
-
 #ifndef ZTS
 		YACONF_G(directory_mtime) = dir_sb.st_mtime;
 #endif
 
-		if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
-			uint32_t i;
-			zend_stat_t sb;
+		PALLOC_HASHTABLE(ini_containers);
+		zend_hash_init(ini_containers, 8, NULL, NULL, 1);
 
-			PALLOC_HASHTABLE(ini_containers);
-			zend_hash_init(ini_containers, ndir, NULL, NULL, 1);
+		PALLOC_HASHTABLE(parsed_ini_files);
+		zend_hash_init(parsed_ini_files, 8, NULL, NULL, 1);
 
-			PALLOC_HASHTABLE(parsed_ini_files);
-			zend_hash_init(parsed_ini_files, ndir, NULL, NULL, 1);
+		PALLOC_HASHTABLE(parsed_ini_dirs);
+		zend_hash_init(parsed_ini_dirs, 8, NULL, NULL, 1);
 
-			for (i = 0; i < ndir; i++) {
-				if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
-					free(namelist[i]);
-					continue;
-				}
-
-				snprintf(ini_file, MAXPATHLEN, "%s%c%s", dirname, DEFAULT_SLASH, namelist[i]->d_name);
-
-				if (VCWD_STAT(ini_file, &sb) == 0) {
-					if (S_ISREG(sb.st_mode)) {
-						zval result;
-						yaconf_filenode node;
-						if (!php_yaconf_parse_ini_file(ini_file, &result)) {
-							free(namelist[i]);
-							continue;
-						}
-						php_yaconf_symtable_update(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name, &result);
-						node.filename = zend_string_init(namelist[i]->d_name, strlen(namelist[i]->d_name), 1);
-						node.mtime = sb.st_mtime;
-						zend_hash_update_mem(parsed_ini_files, node.filename, &node, sizeof(yaconf_filenode));
-					}
-				}
-				/* stat() may fail if the file was removed between scandir() and stat(),
-				 * just skip it, like the reload path does */
-				free(namelist[i]);
-			}
-#ifndef ZTS
-			YACONF_G(last_check) = time(NULL);
-#endif
-			free(namelist);
-		} else {
+		if (php_yaconf_scan_directory(dirname, "", 0, ini_containers, 1, 0) <= 0) {
 			php_error(E_ERROR, "Couldn't opendir '%s'", dirname);
 		}
+
+#ifndef ZTS
+		YACONF_G(last_check) = time(NULL);
+#endif
 	}
 
 	return SUCCESS;
@@ -672,70 +830,17 @@ PHP_RINIT_FUNCTION(yaconf)
 
 		YACONF_G(last_check) = time(NULL);
 
-		if ((dirname = YACONF_G(directory)) && !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)) {
-			if (dir_sb.st_mtime == YACONF_G(directory_mtime)) {
-				YACONF_DEBUG("config directory is not modefied");
-				return SUCCESS;
-			} else {
-				zval result;
-				int i, ndir;
-				struct dirent **namelist;
-				char *p, ini_file[MAXPATHLEN];
-
+		if (ini_containers && (dirname = YACONF_G(directory)) && !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)) {
+			if (dir_sb.st_mtime != YACONF_G(directory_mtime)) {
+				YACONF_DEBUG("config directory modified, re-scan the root level");
 				YACONF_G(directory_mtime) = dir_sb.st_mtime;
-
-				if ((ndir = php_scandir(dirname, &namelist, 0, php_alphasort)) > 0) {
-					zend_stat_t sb;
-					yaconf_filenode *node = NULL;
-
-					for (i = 0; i < ndir; i++) {
-						zval *orig_ht = NULL;
-						if (!(p = strrchr(namelist[i]->d_name, '.')) || strcmp(p, ".ini")) {
-							free(namelist[i]);
-							continue;
-						}
-
-						snprintf(ini_file, MAXPATHLEN, "%s%c%s", dirname, DEFAULT_SLASH, namelist[i]->d_name);
-						if (VCWD_STAT(ini_file, &sb) || !S_ISREG(sb.st_mode)) {
-							free(namelist[i]);
-							continue;
-						}
-
-						if ((node = (yaconf_filenode*)zend_hash_str_find_ptr(parsed_ini_files, namelist[i]->d_name, strlen(namelist[i]->d_name))) == NULL) {
-							YACONF_DEBUG("new configure file found");
-						} else if (node->mtime == sb.st_mtime) {
-							free(namelist[i]);
-							continue;
-						}
-
-						if (!php_yaconf_parse_ini_file(ini_file, &result)) {
-							free(namelist[i]);
-							continue;
-						}
-
-						if ((orig_ht = zend_symtable_str_find(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name)) != NULL) {
-							php_yaconf_hash_destroy(Z_ARRVAL_P(orig_ht));
-							ZVAL_COPY_VALUE(orig_ht, &result);
-						} else {
-							php_yaconf_symtable_update(ini_containers, namelist[i]->d_name, p - namelist[i]->d_name, &result);
-						}
-
-						if (node) {
-							node->mtime = sb.st_mtime;
-						} else {
-							yaconf_filenode n = {0};
-							n.filename = zend_string_init(namelist[i]->d_name, strlen(namelist[i]->d_name), 1);
-							n.mtime = sb.st_mtime;
-							zend_hash_update_mem(parsed_ini_files, n.filename, &n, sizeof(yaconf_filenode));
-						}
-						free(namelist[i]);
-					}
-					free(namelist);
-				}
-				return SUCCESS;
+				php_yaconf_scan_directory(dirname, "", 0, ini_containers, 0, 0);
 			}
-		} 
-		YACONF_DEBUG("stat config directory failed");
+			/* changes inside a sub-directory do not bump the root's mtime, check them individually */
+			php_yaconf_check_directories(dirname);
+		} else {
+			YACONF_DEBUG("stat config directory failed");
+		}
 	}
 
 	return SUCCESS;
@@ -748,6 +853,10 @@ PHP_RINIT_FUNCTION(yaconf)
 PHP_MSHUTDOWN_FUNCTION(yaconf)
 {
 	UNREGISTER_INI_ENTRIES();
+
+	if (parsed_ini_dirs) {
+		php_yaconf_hash_destroy(parsed_ini_dirs);
+	}
 
 	if (parsed_ini_files) {
 		php_yaconf_hash_destroy(parsed_ini_files);
@@ -781,6 +890,16 @@ PHP_MINFO_FUNCTION(yaconf)
 		yaconf_filenode *node;
 		ZEND_HASH_FOREACH_PTR(parsed_ini_files, node) {
 			php_info_print_table_row(2, ZSTR_VAL(node->filename),  ctime(&node->mtime));
+		} ZEND_HASH_FOREACH_END();
+	}
+	php_info_print_table_end();
+
+	php_info_print_table_start();
+	php_info_print_table_header(2, "config sub-directory", "mtime");
+	if (parsed_ini_dirs && zend_hash_num_elements(parsed_ini_dirs)) {
+		yaconf_dirnode *node;
+		ZEND_HASH_FOREACH_PTR(parsed_ini_dirs, node) {
+			php_info_print_table_row(2, ZSTR_VAL(node->dirname),  ctime(&node->mtime));
 		} ZEND_HASH_FOREACH_END();
 	}
 	php_info_print_table_end();
