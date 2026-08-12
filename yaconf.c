@@ -88,6 +88,9 @@ zend_module_entry yaconf_module_entry = {
 ZEND_GET_MODULE(yaconf)
 #endif
 
+/* forward declarations */
+static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, size_t relpath_len, HashTable *container, int is_initial, int depth);
+
 static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	HashTable *ht;
 	PALLOC_HASHTABLE(ht);
@@ -498,10 +501,8 @@ PHP_YACONF_API int php_yaconf_has(zend_string *name) /* {{{ */ {
 }
 /* }}} */
 
-static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, size_t relpath_len, HashTable *container, int is_initial, int depth);
-
-/* load one ".ini" file, keyed by the basename without the ".ini" suffix */
 static void php_yaconf_handle_file(const char *fullpath, const char *relpath, size_t relpath_len, const char *name, size_t key_len, HashTable *container, time_t mtime, int is_initial) /* {{{ */ {
+	/* load one ".ini" file, keyed by the basename without the ".ini" suffix */
 	yaconf_filenode *node;
 	zval result;
 
@@ -535,8 +536,8 @@ static void php_yaconf_handle_file(const char *fullpath, const char *relpath, si
 }
 /* }}} */
 
-/* link an immutable persistent container for a sub-directory into the parent, then recurse */
 static void php_yaconf_handle_directory(const char *fullpath, const char *relpath, size_t relpath_len, const char *name, size_t name_len, HashTable *container, time_t mtime, int is_initial, int depth) /* {{{ */ {
+	/* link an immutable persistent container for a sub-directory into the parent, then recurse */
 	yaconf_dirnode *node;
 	char file_relpath[MAXPATHLEN + 8];
 	size_t file_relpath_len;
@@ -574,8 +575,8 @@ static void php_yaconf_handle_directory(const char *fullpath, const char *relpat
 }
 /* }}} */
 
-/* recursively load ".ini" files and sub-directories into container, relpath is relative to yaconf.directory ("" for the root) */
 static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, size_t relpath_len, HashTable *container, int is_initial, int depth) /* {{{ */ {
+	/* recursively load ".ini" files and sub-directories into container, relpath is relative to yaconf.directory ("" for the root) */
 	int ndir;
 	struct dirent **namelist;
 	uint32_t i;
@@ -631,8 +632,8 @@ static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, s
 }
 /* }}} */
 
-/* stat every tracked sub-directory and re-scan the changed ones, changes inside a sub-directory do not bump the root's mtime */
 static void php_yaconf_check_directories(const char *root) /* {{{ */ {
+	/* stat every tracked sub-directory and re-scan the changed ones, changes inside a sub-directory do not bump the root's mtime */
 	yaconf_dirnode **snapshot;
 	yaconf_dirnode *node;
 	uint32_t count, i, n = 0;
@@ -724,16 +725,19 @@ PHP_METHOD(yaconf, __debug_info) {
 	val = php_yaconf_get(name);
 	if (val) {
 		zval zv;
-		char *address;
-		size_t len;
+		char address[sizeof(void*) * 2 + 3];
+		int len;
+
 		array_init(return_value);
 		ZVAL_STR(&zv, name);
+
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "key", sizeof("key") - 1, &zv);
 		Z_TRY_ADDREF(zv);
+
 		/* stored values are interned strings or immutable arrays only, Z_PTR_P gets the value's address */
-		len = spprintf(&address, 0, "%p", Z_PTR_P(val)); /* can not use zend_strpprintf as it only exported after PHP-7.2 */
-		ZVAL_STR(&zv, zend_string_init(address, len, 0)); 
-		efree(address);
+		len = snprintf(address, sizeof(address), "%p", Z_PTR_P(val)); /* can not use zend_strpprintf as it only exported after PHP-7.2 */
+		ZVAL_STR(&zv, zend_string_init(address, len, 0));
+
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "address", sizeof("address") - 1, &zv);
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "val", sizeof("val") - 1, val);
 		Z_TRY_ADDREF_P(val);
