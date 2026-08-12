@@ -1,5 +1,5 @@
 --TEST--
-Yaconf MINIT: name conflict between a config file and a same-named directory is fatal
+Yaconf MINIT: a directory wins over a same-named config file with a warning
 --SKIPIF--
 <?php
 if (!extension_loaded("yaconf")) print "skip";
@@ -28,8 +28,10 @@ if (!(bool)getenv('TRAVIS') && !(bool)getenv('GITHUB')) {
 $cmd_args = " -d extension=" . dirname(__DIR__) . "/modules/yaconf.so " . $cmd_args;
 $cmd_args .= " -d yaconf.directory=" . $inidir;
 
-/* empty script body: the error is emitted at startup, before any script */
-$cmd = "exec {$php} -n {$cmd_args} -r ''";
+/* the directory must win: foo.x.b comes from foo/x.ini, foo.ini is skipped;
+   2>&1 merges the startup warning (emitted at MINIT) with the script output */
+$code = 'var_dump(Yaconf::has("foo")); var_dump(Yaconf::get("foo.x.b")); var_dump(Yaconf::has("foo.a"));';
+$cmd = "exec {$php} -n {$cmd_args} -r " . escapeshellarg($code) . " 2>&1";
 
 $proc = proc_open($cmd, array(1 => array("pipe", "w"), 2 => array("pipe", "w")), $pipes);
 if (!is_resource($proc)) {
@@ -51,6 +53,8 @@ $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "020";
 @rmdir($inidir);
 ?>
 --EXPECTF--
-Fatal error: yaconf: name conflict between config file 'foo.ini' and a directory with the same name in Unknown on line 0
-%A
-exit=255
+%a yaconf: name conflict between config file 'foo.ini' and a directory with the same name in Unknown on line 0
+bool(true)
+string(1) "2"
+bool(false)
+exit=0

@@ -506,9 +506,9 @@ static void php_yaconf_handle_file(const char *fullpath, const char *relpath, si
 	yaconf_filenode *node;
 	zval result;
 
-	/* name clash with a same-named directory */
+	/* name clash with a same-named directory, the directory wins and the file is skipped */
 	if (relpath_len > 4 && zend_hash_str_find_ptr(parsed_ini_dirs, relpath, relpath_len - 4)) {
-		php_error(is_initial ? E_ERROR : E_WARNING,
+		php_error(E_WARNING,
 				"yaconf: name conflict between config file '%s' and a directory with the same name", relpath);
 		return;
 	}
@@ -542,13 +542,10 @@ static void php_yaconf_handle_directory(const char *fullpath, const char *relpat
 	char file_relpath[MAXPATHLEN + 8];
 	size_t file_relpath_len;
 
-	/* name clash with a same-named ".ini" file */
+	/* a same-named ".ini" file loses to the directory: drop its registry entry,
+	   the stale container under this key is replaced by the symtable_update below */
 	file_relpath_len = snprintf(file_relpath, sizeof(file_relpath), "%s.ini", relpath);
-	if (zend_hash_str_find_ptr(parsed_ini_files, file_relpath, file_relpath_len)) {
-		php_error(is_initial ? E_ERROR : E_WARNING,
-				"yaconf: name conflict between config directory '%s' and a file with the same name", relpath);
-		return;
-	}
+	zend_hash_str_del(parsed_ini_files, file_relpath, file_relpath_len);
 
 	if ((node = (yaconf_dirnode*)zend_hash_str_find_ptr(parsed_ini_dirs, relpath, relpath_len)) != NULL) {
 		/* already tracked */

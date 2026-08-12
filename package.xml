@@ -24,7 +24,7 @@
  <notes>
   - Added sub-directory support: INI files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name ('sub/x.ini' as 'sub.x')
   - Added hot-reload tracking of sub-directories
-  - Startup now fails with a fatal error on a name conflict between an INI file and a same-named directory
+  - A name conflict between an INI file and a same-named directory now raises a warning: the directory wins and the file is skipped
   - Fixed memory leaks when a dot-notation key overrides a scalar value
   - Changed Yaconf::__debug_info() to report the stored value's address
  </notes>
@@ -172,7 +172,7 @@
    <notes>
     - Added sub-directory support: INI files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name ('sub/x.ini' as 'sub.x')
     - Added hot-reload tracking of sub-directories
-    - Startup now fails with a fatal error on a name conflict between an INI file and a same-named directory
+    - A name conflict between an INI file and a same-named directory now raises a warning: the directory wins and the file is skipped
     - Fixed memory leaks when a dot-notation key overrides a scalar value
     - Changed Yaconf::__debug_info() to report the stored value's address
    </notes>

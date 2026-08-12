@@ -260,7 +260,7 @@ array(2) {
 */
 ```
 
-A `.ini` file and a directory with the same name would claim the same key, so Yaconf refuses to start with a fatal error if both exist.
+A `.ini` file and a directory with the same name would claim the same key; the directory wins — Yaconf emits a warning and skips the file.
 
 ### phpinfo() Output
 
