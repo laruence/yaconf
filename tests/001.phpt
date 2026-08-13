@@ -3,7 +3,6 @@ Check for Yaconf presence
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.mprotect=1
 --FILE--
 <?php 
 echo "yaconf extension is available";

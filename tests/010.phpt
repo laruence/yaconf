@@ -3,7 +3,6 @@ Check for Complex usage
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.mprotect=1
 yaconf.directory={PWD}/inis/010
 --ENV--
 YACONF=2.0.x

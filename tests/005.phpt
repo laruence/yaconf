@@ -3,7 +3,6 @@ Check for Yaconf with long key name
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.mprotect=1
 yaconf.directory={PWD}/inis/005
 log_errors=1
 --FILE--

@@ -2,7 +2,7 @@
 
 define("YACONF_SERVER_HOSTNAME", (getenv('YACONF_SERVER_HOSTNAME') ?: "localhost"));
 
-function yaconf_server_start($inidir, $port = 8965, $check_delay = 0, $mprotect = 0) {
+function yaconf_server_start($inidir, $port = 8965, $check_delay = 0) {
 	$doc_root = __DIR__ . DIRECTORY_SEPARATOR . "htdocs";
 	$php_executable = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
 	$cmd_args = NULL;
@@ -41,7 +41,6 @@ PHP
 
 	$cmd_args .= " -d yaconf.directory=" . $inidir;
 	$cmd_args .= " -d yaconf.check_delay=" . $check_delay;
-	$cmd_args .= " -d yaconf.mprotect=" . $mprotect;
 
 	if (substr(PHP_OS, 0, 3) == 'WIN') {
 		$cmd = "{$php_executable} -t {$doc_root} -n {$cmd_args} -S " . YACONF_SERVER_HOSTNAME . ":" . $port;

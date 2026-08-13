@@ -5,7 +5,6 @@ Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.mprotect=1
 yaconf.directory={PWD}/inis/025
 log_errors=1
 --FILE--

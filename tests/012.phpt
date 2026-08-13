@@ -4,7 +4,6 @@ Check for Yaconf with wrong arguments (PHP7.x)
 <?php if (!extension_loaded("yaconf")) die("skip"); ?>
 <?php if (version_compare(PHP_VERSION, '8.0.0') >= 0) die("skip, only for 7.x"); ?>
 --INI--
-yaconf.mprotect=1
 --FILE--
 <?php 
 

@@ -37,7 +37,6 @@ if (!(bool)getenv('TRAVIS') && !(bool)getenv('GITHUB')) {
     $cmd_args = getenv('TEST_PHP_ARGS');
 }
 $cmd_args = " -d extension=" . dirname(__DIR__) . "/modules/yaconf.so " . $cmd_args;
-$cmd_args .= " -d yaconf.mprotect=1" . " -d yaconf.directory=" . $inidir;
 
 $code = 'var_dump(Yaconf::get("locked")); var_dump(Yaconf::get("readable.flag")); var_dump(Yaconf::has("dangling"));';
 $cmd = "exec {$php} -n {$cmd_args} -r " . escapeshellarg($code);

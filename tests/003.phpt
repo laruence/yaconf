@@ -3,7 +3,6 @@ Check for Yaconf
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.mprotect=1
 yaconf.directory={PWD}/inis/003/
 --FILE--
 <?php 

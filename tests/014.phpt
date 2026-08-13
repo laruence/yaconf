@@ -3,7 +3,6 @@ Yaconf sub-directory support and Copy-on-Write
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.mprotect=1
 yaconf.directory={PWD}/inis/014/
 --FILE--
 <?php

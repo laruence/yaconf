@@ -30,30 +30,9 @@
 #include "yaconf_legacy_arginfo.h"
 #endif
 
-/* cross-platform memory protection for compacted block */
 /* PHP 7.1 compatibility: HT_IS_INITIALIZED was added in 7.2 */
 #ifndef HT_IS_INITIALIZED
 # define HT_IS_INITIALIZED(ht) ((ht)->nTableMask != 0)
-#endif
-
-#if defined(_WIN32)
-# include <windows.h>
-# define YACONF_BLOCK_ALLOC(size)     VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
-# define YACONF_BLOCK_FREE(addr, size) do { if (addr) { VirtualFree(addr, 0, MEM_RELEASE); } } while(0)
-# define YACONF_BLOCK_READONLY(addr, size)  do { DWORD _old; VirtualProtect(addr, size, PAGE_READONLY,  &_old); } while(0)
-# define YACONF_BLOCK_READWRITE(addr, size) do { DWORD _old; VirtualProtect(addr, size, PAGE_READWRITE, &_old); } while(0)
-# define YACONF_HAVE_MPROTECT 1
-#elif defined(HAVE_SYS_MMAN_H) && defined(HAVE_MPROTECT)
-# include <sys/mman.h>
-# include <unistd.h>
-# ifndef MAP_ANONYMOUS
-#  define MAP_ANONYMOUS MAP_ANON
-# endif
-# define YACONF_BLOCK_ALLOC(size)     mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)
-# define YACONF_BLOCK_FREE(addr, size) do { if (addr) { munmap(addr, size); } } while(0)
-# define YACONF_BLOCK_READONLY(addr, size)  mprotect(addr, size, PROT_READ)
-# define YACONF_BLOCK_READWRITE(addr, size) mprotect(addr, size, PROT_READ | PROT_WRITE)
-# define YACONF_HAVE_MPROTECT 1
 #endif
 
 ZEND_DECLARE_MODULE_GLOBALS(yaconf);
@@ -914,15 +893,7 @@ static int yaconf_compact(void) /* {{{ */ {
 	} ZEND_HASH_FOREACH_END();
 
 	/* step 3: allocate the block */
-#ifdef YACONF_HAVE_MPROTECT
-		if (YACONF_G(mprotect)) {
-		yaconf_block = (char*)YACONF_BLOCK_ALLOC(total);
-	} else {
-		yaconf_block = (char*)pemalloc(total, 1);
-	}
-#else
-		yaconf_block = (char*)pemalloc(total, 1);
-#endif
+	yaconf_block = (char*)pemalloc(total, 1);
 	if (!yaconf_block) {
 		zend_hash_destroy(&str_set);
 		zend_hash_destroy(&ht_set);
@@ -983,27 +954,13 @@ static int yaconf_compact(void) /* {{{ */ {
 	zend_hash_destroy(&str_xlat);
 	zend_hash_destroy(&ht_xlat);
 
-#ifdef YACONF_HAVE_MPROTECT
-	if (YACONF_G(mprotect)) {
-		YACONF_BLOCK_READONLY(yaconf_block, yaconf_block_size);
-	}
-#endif
-
 	return 1;
 } /* }}} */
 
 /* free the compacted block */
 static void yaconf_compact_free(void) /* {{{ */ {
 	if (yaconf_block) {
-	#ifdef YACONF_HAVE_MPROTECT
-		if (YACONF_G(mprotect)) {
-			YACONF_BLOCK_FREE(yaconf_block, yaconf_block_size);
-		} else {
-			pefree(yaconf_block, 1);
-		}
-#else
 		pefree(yaconf_block, 1);
-#endif
 		yaconf_block = NULL;
 		yaconf_block_size = 0;
 	}
@@ -1111,9 +1068,6 @@ PHP_INI_BEGIN()
 #ifndef ZTS
 	STD_PHP_INI_ENTRY("yaconf.check_delay", "300", PHP_INI_SYSTEM, OnUpdateLong, check_delay, zend_yaconf_globals, yaconf_globals)
 #endif
-#ifdef YACONF_HAVE_MPROTECT
-	STD_PHP_INI_ENTRY("yaconf.mprotect", "1", PHP_INI_SYSTEM, OnUpdateBool, mprotect, zend_yaconf_globals, yaconf_globals)
-#endif
 PHP_INI_END()
 /* }}} */
 
@@ -1193,13 +1147,6 @@ PHP_RINIT_FUNCTION(yaconf)
 		YACONF_G(last_check) = time(NULL);
 
 		if (ini_containers && (dirname = YACONF_G(directory)) && !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)) {
-#ifdef YACONF_HAVE_MPROTECT
-			/* temporarily unprotect for hot-reload when mprotect is enabled */
-			if (YACONF_G(mprotect) && yaconf_block) {
-				YACONF_BLOCK_READWRITE(yaconf_block, yaconf_block_size);
-			}
-#endif
-
 			if (dir_sb.st_mtime != YACONF_G(directory_mtime)) {
 				YACONF_DEBUG("config directory modified, re-scan the root level");
 				YACONF_G(directory_mtime) = dir_sb.st_mtime;
@@ -1207,13 +1154,6 @@ PHP_RINIT_FUNCTION(yaconf)
 			}
 			/* changes inside a sub-directory do not bump the root's mtime, check them individually */
 			php_yaconf_check_directories(dirname);
-
-#ifdef YACONF_HAVE_MPROTECT
-			/* re-protect after hot-reload */
-			if (YACONF_G(mprotect) && yaconf_block) {
-				YACONF_BLOCK_READONLY(yaconf_block, yaconf_block_size);
-			}
-#endif
 		} else {
 			YACONF_DEBUG("stat config directory failed");
 		}
@@ -1289,10 +1229,6 @@ PHP_MINFO_FUNCTION(yaconf)
 		php_info_print_table_row(2, "compacted files", buf);
 		snprintf(buf, sizeof(buf), "%zu bytes (%.1f KB)", yaconf_block_size, (double)yaconf_block_size / 1024.0);
 		php_info_print_table_row(2, "compacted size", buf);
-#ifdef YACONF_HAVE_MPROTECT
-		snprintf(buf, sizeof(buf), "%s", YACONF_G(mprotect) ? "enabled" : "disabled");
-		php_info_print_table_row(2, "mprotect", buf);
-#endif
 	}
 	php_info_print_table_end();
 
