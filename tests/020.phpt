@@ -26,6 +26,7 @@ if (!(bool)getenv('TRAVIS') && !(bool)getenv('GITHUB')) {
     $cmd_args = getenv('TEST_PHP_ARGS');
 }
 $cmd_args = " -d extension=" . dirname(__DIR__) . "/modules/yaconf.so " . $cmd_args;
+$cmd_args .= " -d yaconf.directory=" . $inidir;
 
 /* the directory must win: foo.x.b comes from foo/x.ini, foo.ini is skipped;
    2>&1 merges the startup warning (emitted at MINIT) with the script output */
