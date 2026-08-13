@@ -3,6 +3,7 @@ Yaconf RINIT hot-reload of root and sub-directories
 --SKIPIF--
 <?php
 if (!extension_loaded("yaconf")) print "skip";
+if (!function_exists("json_decode")) print "skip json_decode not available";
 if (substr(PHP_OS, 0, 3) == 'WIN') die("skip doesn't work on Windows");
 if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supported in ZTS");
 ?>
