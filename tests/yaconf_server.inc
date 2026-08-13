@@ -2,7 +2,7 @@
 
 define("YACONF_SERVER_HOSTNAME", (getenv('YACONF_SERVER_HOSTNAME') ?: "localhost"));
 
-function yaconf_server_start($inidir, $port = 8965, $check_delay = 0) {
+function yaconf_server_start($inidir, $port = 8965, $check_delay = 0, $mprotect = 0) {
 	$doc_root = __DIR__ . DIRECTORY_SEPARATOR . "htdocs";
 	$php_executable = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
 	$cmd_args = NULL;
@@ -11,7 +11,7 @@ function yaconf_server_start($inidir, $port = 8965, $check_delay = 0) {
 		mkdir($doc_root, 0755, true);
 	}
 
-	/* serves config values by key, and stored-value addresses via __debug_info */
+	/* serves config values by key, stored-value addresses via __debug_info, and changed status */
 	file_put_contents($doc_root . DIRECTORY_SEPARATOR . "index.php", <<<'PHP'
 <?php
 if (isset($_GET['key'])) {
@@ -20,6 +20,9 @@ if (isset($_GET['key'])) {
 } elseif (isset($_GET['addr'])) {
 	$info = Yaconf::__debug_info($_GET['addr']);
 	echo $info ? $info["address"] . "\n" : "NULL\n";
+} elseif (isset($_GET['changed'])) {
+	$info = Yaconf::__debug_info($_GET['changed']);
+	echo $info ? json_encode($info["changed"]) . "\n" : "null\n";
 } else {
 	echo "yaconf_server_ready\n";
 }
@@ -38,6 +41,7 @@ PHP
 
 	$cmd_args .= " -d yaconf.directory=" . $inidir;
 	$cmd_args .= " -d yaconf.check_delay=" . $check_delay;
+	$cmd_args .= " -d yaconf.mprotect=" . $mprotect;
 
 	if (substr(PHP_OS, 0, 3) == 'WIN') {
 		$cmd = "{$php_executable} -t {$doc_root} -n {$cmd_args} -S " . YACONF_SERVER_HOSTNAME . ":" . $port;

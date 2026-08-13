@@ -37,6 +37,14 @@ static HashTable *parsed_ini_files;
 static HashTable *parsed_ini_dirs;
 static zval active_ini_file_section;
 
+/* 0 = temporary (emalloc) during MINIT parse, 1 = persistent (pemalloc) for RINIT reload */
+static int yaconf_parse_persistent = 1;
+
+/* compacted block storage */
+static char    *yaconf_block = NULL;
+static size_t   yaconf_block_size = 0;
+static Bucket   yaconf_uninitialized_bucket;
+
 zend_class_entry *yaconf_ce;
 
 static void php_yaconf_zval_persistent(zval *zv, zval *rv);
@@ -93,9 +101,9 @@ static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, s
 
 static void php_yaconf_hash_init(zval *zv, size_t size) /* {{{ */ {
 	HashTable *ht;
-	PALLOC_HASHTABLE(ht);
+	ht = (HashTable*)pemalloc(sizeof(HashTable), yaconf_parse_persistent);
 	/* ZVAL_PTR_DTOR is necessary in case that this array be cloned */
-	zend_hash_init(ht, size, NULL, ZVAL_PTR_DTOR, 1);
+	zend_hash_init(ht, size, NULL, ZVAL_PTR_DTOR, yaconf_parse_persistent);
 
 #if PHP_VERSION_ID >= 70400
 	zend_hash_real_init(ht, 0);
@@ -138,13 +146,13 @@ static void php_yaconf_hash_destroy(HashTable *ht) /* {{{ */ {
 #endif
 		ZEND_HASH_FOREACH_STR_KEY_VAL(ht, key, element) {
 			if (key) {
-				free(key);
+				pefree(key, yaconf_parse_persistent);
 			}
 			php_yaconf_zval_dtor(element);
 		} ZEND_HASH_FOREACH_END();
-		free(HT_GET_DATA_ADDR(ht));
+		pefree(HT_GET_DATA_ADDR(ht), yaconf_parse_persistent);
 	}
-	free(ht);
+	pefree(ht, yaconf_parse_persistent);
 } /* }}} */
 
 static void php_yaconf_zval_dtor(zval *pzval) /* {{{ */ {
@@ -154,7 +162,7 @@ static void php_yaconf_zval_dtor(zval *pzval) /* {{{ */ {
 			break;
 		case IS_PTR:
 		case IS_STRING:
-			free(Z_PTR_P(pzval));
+			pefree(Z_PTR_P(pzval), yaconf_parse_persistent);
 			break;
 		default:
 			break;
@@ -163,7 +171,7 @@ static void php_yaconf_zval_dtor(zval *pzval) /* {{{ */ {
 /* }}} */
 
 static zend_string* php_yaconf_str_persistent(char *str, size_t len) /* {{{ */ {
-	zend_string *key = zend_string_init(str, len, 1);
+	zend_string *key = zend_string_init(str, len, yaconf_parse_persistent);
 	if (key == NULL) {
 		zend_error(E_ERROR, "fail to allocate memory for string, no enough memory?");
 	}
@@ -183,14 +191,13 @@ static zval* php_yaconf_symtable_update(HashTable *ht, char *key, size_t len, zv
 	
 	if (ZEND_HANDLE_NUMERIC_STR(key, len, idx)) {
 		if ((element = zend_hash_index_find(ht, idx))) {
-			php_yaconf_zval_dtor(element);
+			/* skip dtor: old value is in the compacted block, freed as a whole in MSHUTDOWN */
 			ZVAL_COPY_VALUE(element, zv);
 		} else {
 			element = zend_hash_index_add(ht, idx, zv);
 		}
 	} else {
 		if ((element = zend_hash_str_find(ht, key, len))) {
-			php_yaconf_zval_dtor(element);
 			ZVAL_COPY_VALUE(element, zv);
 		} else {
 			element = zend_hash_add(ht, php_yaconf_str_persistent(key, len), zv);
@@ -680,6 +687,276 @@ static void php_yaconf_check_directories(const char *root) /* {{{ */ {
 }
 /* }}} */
 
+/* {{{ two-phase compaction: consolidate all config arrays + strings into one block
+ *
+ *   parse:  ini files → persistent tree (individual pemalloc pieces)
+ *   compact: walk tree → collect strings & HashTables → calc total size →
+ *            allocate one block → copy strings (dedup by content) →
+ *            copy HashTables (remap pointers) → free old tree
+ *
+ * After compaction, ini_containers and dirnode containers point into the
+ * single block.  MSHUTDOWN just frees the block.  Hot reload (RINIT) rebuilds
+ * the whole tree from scratch and re-compacts.
+ */
+#define YACONF_ALIGNED_SIZE(size) (((size) + 7UL) & ~7UL)
+#define YACONF_HASH_SIZE(nTableMask) \
+    (((size_t)(uint32_t)-(int32_t)(nTableMask)) * sizeof(uint32_t))
+#define YACONF_HT_USED_SIZE(ht) \
+    (YACONF_HASH_SIZE((ht)->nTableMask) + (size_t)(ht)->nNumUsed * sizeof(Bucket))
+/* }}} */
+
+/* collect all unique strings and HashTable pointers from the tree */
+static void yaconf_compact_collect_zval(zval *zv, HashTable *str_set, HashTable *ht_set) /* {{{ */ {
+	if (Z_TYPE_P(zv) == IS_STRING) {
+		zend_string *str = Z_STR_P(zv);
+		zend_hash_str_update_ptr(str_set, ZSTR_VAL(str), ZSTR_LEN(str), str);
+	} else if (Z_TYPE_P(zv) == IS_ARRAY) {
+		HashTable *ht = Z_ARRVAL_P(zv);
+		if (!zend_hash_index_find_ptr(ht_set, (zend_ulong)(uintptr_t)ht)) {
+			zend_string *key;
+			zval *val;
+			zend_hash_index_update_ptr(ht_set, (zend_ulong)(uintptr_t)ht, ht);
+			ZEND_HASH_FOREACH_STR_KEY_VAL(ht, key, val) {
+				if (key) {
+					zend_hash_str_update_ptr(str_set, ZSTR_VAL(key), ZSTR_LEN(key), key);
+				}
+				yaconf_compact_collect_zval(val, str_set, ht_set);
+			} ZEND_HASH_FOREACH_END();
+		}
+	}
+} /* }}} */
+
+/* calc size of one HashTable: struct + data region */
+static void yaconf_compact_calc_ht(HashTable *ht, size_t *total) /* {{{ */ {
+	if (!HT_IS_INITIALIZED(ht) || ht->nNumUsed == 0) {
+		return;
+	}
+	*total += YACONF_ALIGNED_SIZE(sizeof(zend_array));
+
+	/* ref: zend_persist_calc.c zend_hash_persist_calc */
+	if (ht->nNumUsed > HT_MIN_SIZE && ht->nNumUsed < (uint32_t)(-(int32_t)ht->nTableMask) / 4) {
+		/* compact sparse table */
+		uint32_t hash_size = (uint32_t)(-(int32_t)ht->nTableMask);
+		while (hash_size >> 2 > ht->nNumUsed) {
+			hash_size >>= 1;
+		}
+		*total += YACONF_ALIGNED_SIZE(hash_size * sizeof(uint32_t) + ht->nNumUsed * sizeof(Bucket));
+	} else {
+		*total += YACONF_ALIGNED_SIZE(YACONF_HT_USED_SIZE(ht));
+	}
+} /* }}} */
+
+/* helper: remap a string via content lookup */
+static zend_always_inline zend_string *yaconf_compact_str(HashTable *str_xlat, zend_string *s) {
+	return zend_hash_str_find_ptr(str_xlat, ZSTR_VAL(s), ZSTR_LEN(s));
+}
+
+/* helper: remap a HashTable via old-ptr lookup */
+static zend_always_inline HashTable *yaconf_compact_ht(HashTable *ht_xlat, HashTable *ht) {
+	return zend_hash_index_find_ptr(ht_xlat, (zend_ulong)(uintptr_t)ht);
+}
+
+/* copy one HashTable (and its children) into the block, remap pointers */
+static void yaconf_compact_copy_ht(HashTable *src, char **cursor, HashTable *str_xlat, HashTable *ht_xlat) /* {{{ */ {
+	zend_array *dst;
+	uint32_t i;
+	Bucket *src_bucket, *dst_bucket;
+
+	if (zend_hash_index_find_ptr(ht_xlat, (zend_ulong)(uintptr_t)src)) {
+		return; /* already copied */
+	}
+
+	/* copy zend_array struct */
+	dst = (zend_array*)*cursor;
+	*cursor += YACONF_ALIGNED_SIZE(sizeof(zend_array));
+	memcpy(dst, src, sizeof(zend_array));
+	zend_hash_index_update_ptr(ht_xlat, (zend_ulong)(uintptr_t)src, dst);
+
+	dst->pDestructor = NULL;
+	dst->nInternalPointer = HT_INVALID_IDX;
+
+	if (src->nNumUsed == 0) {
+		/* empty table — point to a sentinel, no data region needed */
+		dst->nTableMask = HT_MIN_MASK;
+		HT_SET_DATA_ADDR(dst, &yaconf_uninitialized_bucket);
+		return;
+	}
+
+	if (src->nNumUsed > HT_MIN_SIZE && src->nNumUsed < (uint32_t)(-(int32_t)src->nTableMask) / 4) {
+		/* compact sparse table: rebuild hash with smaller size */
+		uint32_t hash_size = (uint32_t)(-(int32_t)src->nTableMask);
+		while (hash_size >> 2 > src->nNumUsed) {
+			hash_size >>= 1;
+		}
+		dst->nTableMask = (uint32_t)(-(int32_t)hash_size);
+
+		{
+			char *data = *cursor;
+			size_t hash_bytes = hash_size * sizeof(uint32_t);
+			size_t bucket_bytes = src->nNumUsed * sizeof(Bucket);
+			*cursor += YACONF_ALIGNED_SIZE(hash_bytes + bucket_bytes);
+
+			memset(data, HT_INVALID_IDX, hash_bytes);
+			dst_bucket = (Bucket*)(data + hash_bytes);
+			memcpy(dst_bucket, src->arData, bucket_bytes);
+			HT_SET_DATA_ADDR(dst, data);
+
+			for (i = 0; i < src->nNumUsed; i++) {
+				Bucket *b = &dst_bucket[i];
+				if (Z_TYPE(b->val) == IS_UNDEF) continue;
+
+				if (b->key) {
+					b->key = yaconf_compact_str(str_xlat, b->key);
+				}
+				if (Z_TYPE(b->val) == IS_STRING) {
+					Z_STR(b->val) = yaconf_compact_str(str_xlat, Z_STR(b->val));
+				} else if (Z_TYPE(b->val) == IS_ARRAY) {
+					yaconf_compact_copy_ht(Z_ARRVAL(b->val), cursor, str_xlat, ht_xlat);
+					Z_ARRVAL(b->val) = yaconf_compact_ht(ht_xlat, Z_ARRVAL(b->val));
+				}
+
+				/* rehash */
+				{
+					uint32_t nIndex = b->h | dst->nTableMask;
+					Z_NEXT(b->val) = HT_HASH(dst, nIndex);
+					HT_HASH(dst, nIndex) = HT_IDX_TO_HASH(i);
+				}
+			}
+		}
+	} else {
+		/* copy data region as-is */
+		size_t region_size = YACONF_HT_USED_SIZE(src);
+		char *data = *cursor;
+		*cursor += YACONF_ALIGNED_SIZE(region_size);
+		memcpy(data, HT_GET_DATA_ADDR(src), region_size);
+		HT_SET_DATA_ADDR(dst, data);
+
+		/* remap pointers in the copied buckets */
+		dst_bucket = dst->arData;
+		for (i = 0; i < src->nNumUsed; i++) {
+			if (Z_TYPE(dst_bucket[i].val) == IS_UNDEF) continue;
+
+			if (dst_bucket[i].key) {
+				dst_bucket[i].key = yaconf_compact_str(str_xlat, dst_bucket[i].key);
+			}
+			if (Z_TYPE(dst_bucket[i].val) == IS_STRING) {
+				Z_STR(dst_bucket[i].val) = yaconf_compact_str(str_xlat, Z_STR(dst_bucket[i].val));
+			} else if (Z_TYPE(dst_bucket[i].val) == IS_ARRAY) {
+				yaconf_compact_copy_ht(Z_ARRVAL(dst_bucket[i].val), cursor, str_xlat, ht_xlat);
+				Z_ARRVAL(dst_bucket[i].val) = yaconf_compact_ht(ht_xlat, Z_ARRVAL(dst_bucket[i].val));
+			}
+		}
+	}
+} /* }}} */
+
+/* main entry: compact the parsed tree into one block */
+static int yaconf_compact(void) /* {{{ */ {
+	HashTable str_set, ht_set, str_xlat, ht_xlat;
+	zend_string *str;
+	HashTable *ht;
+	char *cursor;
+	size_t total = 0;
+	yaconf_dirnode *node;
+
+	if (!ini_containers) {
+		return 1;
+	}
+
+	/* step 1: collect all strings and HashTables */
+	zend_hash_init(&str_set, 64, NULL, NULL, 0);
+	zend_hash_init(&ht_set, 16, NULL, NULL, 0);
+
+	{
+		zend_string *key;
+		zval *val;
+		zend_hash_index_update_ptr(&ht_set, (zend_ulong)(uintptr_t)ini_containers, ini_containers);
+		ZEND_HASH_FOREACH_STR_KEY_VAL(ini_containers, key, val) {
+			if (key) {
+				zend_hash_str_update_ptr(&str_set, ZSTR_VAL(key), ZSTR_LEN(key), key);
+			}
+			yaconf_compact_collect_zval(val, &str_set, &ht_set);
+		} ZEND_HASH_FOREACH_END();
+	}
+
+	/* step 2: calculate total size */
+	ZEND_HASH_FOREACH_PTR(&str_set, str) {
+		total += YACONF_ALIGNED_SIZE(ZEND_MM_ALIGNED_SIZE(_ZSTR_STRUCT_SIZE(ZSTR_LEN(str))));
+	} ZEND_HASH_FOREACH_END();
+
+	ZEND_HASH_FOREACH_PTR(&ht_set, ht) {
+		yaconf_compact_calc_ht(ht, &total);
+	} ZEND_HASH_FOREACH_END();
+
+	/* step 3: allocate the block */
+	yaconf_block = (char*)pemalloc(total, 1);
+	if (!yaconf_block) {
+		zend_hash_destroy(&str_set);
+		zend_hash_destroy(&ht_set);
+		return 0;
+	}
+	yaconf_block_size = total;
+	cursor = yaconf_block;
+
+	/* step 4: copy strings into the block, build str_xlat (content → new ptr) */
+	zend_hash_init(&str_xlat, zend_hash_num_elements(&str_set), NULL, NULL, 0);
+	ZEND_HASH_FOREACH_PTR(&str_set, str) {
+		size_t alloc_size = ZEND_MM_ALIGNED_SIZE(_ZSTR_STRUCT_SIZE(ZSTR_LEN(str)));
+		zend_string *new_str = (zend_string*)cursor;
+
+		memcpy(new_str, str, alloc_size);
+		GC_SET_REFCOUNT(new_str, 1);
+		GC_TYPE_INFO(new_str) = GC_TYPE_INFO(str);
+		new_str->h = str->h;
+		cursor += YACONF_ALIGNED_SIZE(alloc_size);
+
+		zend_hash_str_update_ptr(&str_xlat, ZSTR_VAL(new_str), ZSTR_LEN(new_str), new_str);
+	} ZEND_HASH_FOREACH_END();
+
+	/* step 5-6: copy HashTables, update ini_containers and dirnode containers */
+	zend_hash_init(&ht_xlat, zend_hash_num_elements(&ht_set), NULL, NULL, 0);
+	yaconf_compact_copy_ht(ini_containers, &cursor, &str_xlat, &ht_xlat);
+	ini_containers = yaconf_compact_ht(&ht_xlat, ini_containers);
+
+	if (parsed_ini_dirs) {
+		ZEND_HASH_FOREACH_PTR(parsed_ini_dirs, node) {
+			HashTable *new_container = yaconf_compact_ht(&ht_xlat, node->container);
+			if (new_container) {
+				node->container = new_container;
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
+
+	/* step 7: free the old individually-allocated tree */
+	{
+		ZEND_HASH_FOREACH_PTR(&str_set, str) {
+			pefree(str, 0);
+		} ZEND_HASH_FOREACH_END();
+
+		ZEND_HASH_FOREACH_PTR(&ht_set, ht) {
+			if (ht != ini_containers && HT_IS_INITIALIZED(ht) && ht->nNumUsed > 0) {
+				pefree(HT_GET_DATA_ADDR(ht), 0);
+			}
+			pefree(ht, 0);
+		} ZEND_HASH_FOREACH_END();
+	}
+
+	zend_hash_destroy(&str_set);
+	zend_hash_destroy(&ht_set);
+	zend_hash_destroy(&str_xlat);
+	zend_hash_destroy(&ht_xlat);
+
+	return 1;
+} /* }}} */
+
+/* free the compacted block */
+static void yaconf_compact_free(void) /* {{{ */ {
+	if (yaconf_block) {
+		pefree(yaconf_block, 1);
+		yaconf_block = NULL;
+		yaconf_block_size = 0;
+	}
+} /* }}} */
+
 /** {{{ proto public Yaconf::get(string $name, $default = NULL)
 */
 PHP_METHOD(yaconf, get) {
@@ -745,6 +1022,20 @@ PHP_METHOD(yaconf, __debug_info) {
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "address", sizeof("address") - 1, &zv);
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "val", sizeof("val") - 1, val);
 		Z_TRY_ADDREF_P(val);
+
+		/* changed: false when the stored value's data still lives inside the compacted block,
+		 *           meaning the OS hasn't been forced to copy the page (COW works).
+		 *           true when the value has been reallocated outside the block (e.g. RINIT reload). */
+		if (yaconf_block && Z_TYPE_P(val) != IS_NULL) {
+			uintptr_t block_start = (uintptr_t)yaconf_block;
+			uintptr_t block_end   = block_start + yaconf_block_size;
+			uintptr_t val_ptr     = (uintptr_t)Z_PTR_P(val);
+			ZVAL_BOOL(&zv, !(val_ptr >= block_start && val_ptr < block_end));
+		} else {
+			ZVAL_BOOL(&zv, 1);
+		}
+		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "changed", sizeof("changed") - 1, &zv);
+
 		return;
 	}
 
@@ -802,9 +1093,13 @@ PHP_MINIT_FUNCTION(yaconf)
 		YACONF_G(directory_mtime) = dir_sb.st_mtime;
 #endif
 
-		PALLOC_HASHTABLE(ini_containers);
-		zend_hash_init(ini_containers, 8, NULL, NULL, 1);
+		/* Phase 1: parse with temporary memory (emalloc) */
+		yaconf_parse_persistent = 0;
 
+		ini_containers = (HashTable*)pemalloc(sizeof(HashTable), 0);
+		zend_hash_init(ini_containers, 8, NULL, NULL, 0);
+
+		/* parsed_ini_files and parsed_ini_dirs are always persistent (used across requests) */
 		PALLOC_HASHTABLE(parsed_ini_files);
 		zend_hash_init(parsed_ini_files, 8, NULL, NULL, 1);
 
@@ -814,6 +1109,10 @@ PHP_MINIT_FUNCTION(yaconf)
 		if (php_yaconf_scan_directory(dirname, "", 0, ini_containers, 1, 0) <= 0) {
 			php_error(E_ERROR, "Couldn't opendir '%s'", dirname);
 		}
+
+		/* Phase 2: compact everything into one persistent block */
+		yaconf_parse_persistent = 1;
+		yaconf_compact();
 
 #ifndef ZTS
 		YACONF_G(last_check) = time(NULL);
@@ -871,7 +1170,7 @@ PHP_MSHUTDOWN_FUNCTION(yaconf)
 	}
 
 	if (ini_containers) {
-		php_yaconf_hash_destroy(ini_containers);
+		yaconf_compact_free();
 	}
 
 	return SUCCESS;
@@ -909,6 +1208,18 @@ PHP_MINFO_FUNCTION(yaconf)
 		ZEND_HASH_FOREACH_PTR(parsed_ini_dirs, node) {
 			php_info_print_table_row(2, ZSTR_VAL(node->dirname),  ctime(&node->mtime));
 		} ZEND_HASH_FOREACH_END();
+	}
+	php_info_print_table_end();
+
+	php_info_print_table_start();
+	php_info_print_table_header(2, "compacted block", "value");
+	if (yaconf_block) {
+		char buf[128];
+		uint32_t file_count = parsed_ini_files ? zend_hash_num_elements(parsed_ini_files) : 0;
+		snprintf(buf, sizeof(buf), "%u file(s)", file_count);
+		php_info_print_table_row(2, "compacted files", buf);
+		snprintf(buf, sizeof(buf), "%zu bytes (%.1f KB)", yaconf_block_size, (double)yaconf_block_size / 1024.0);
+		php_info_print_table_row(2, "compacted size", buf);
 	}
 	php_info_print_table_end();
 

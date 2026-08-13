@@ -57,6 +57,11 @@ tmp-php.ini
 
 # Archives
 yac-*.tgz
+yaconf-*.tgz
+
+# Editor / IDE / tools
+.tags
+*~
 
 # Dependency files
 *.dep

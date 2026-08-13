@@ -18,7 +18,7 @@ include "yaconf_server.inc";
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "023";
 $subdir = $inidir . DIRECTORY_SEPARATOR . "sub";
 
-define("YACONF_TEST_PORT", yaconf_server_start($inidir));
+define("YACONF_TEST_PORT", yaconf_server_start($inidir, 8965, 0, 1));
 define("YACONF_TEST_URL", "http://" . YACONF_SERVER_HOSTNAME . ":" . YACONF_TEST_PORT . "/index.php");
 
 function fetch($suffix) {
@@ -26,24 +26,23 @@ function fetch($suffix) {
     return file_get_contents(YACONF_TEST_URL . "?key=" . urlencode($suffix), false, $ctx);
 }
 
-function addr($name) {
+function changed($name) {
     $ctx = stream_context_create(["http" => ["timeout" => 3]]);
-    return trim(file_get_contents(YACONF_TEST_URL . "?addr=" . urlencode($name), false, $ctx));
+    return json_decode(trim(file_get_contents(YACONF_TEST_URL . "?changed=" . urlencode($name), false, $ctx)));
 }
 
 // inis/023 layout:
 //   root.ini         a=1, [rinit] foo="before", number=42
 //   sub/child.ini    key="v1"
 
-/* 1. initial state */
+/* 1. initial state: all data is in the compacted block */
 echo fetch("root.a");
 echo fetch("root.rinit.foo");
 echo fetch("sub.child.key");
-$addr_root  = addr("root");
-$addr_child = addr("sub.child");
-var_dump($addr_root === addr("root"));   // repeated reads serve the same table
+var_dump(changed("root") === false);
+var_dump(changed("sub.child") === false);
 
-/* 2. modify the root file: value and address both change */
+/* 2. modify the root file: root reloaded -> out of block, sub.child untouched */
 sleep(1);
 $root = $inidir . DIRECTORY_SEPARATOR . "root.ini";
 $content = str_replace('foo="before"', 'foo="after"', file_get_contents($root));
@@ -54,9 +53,8 @@ touch($inidir);
 
 echo fetch("root.rinit.foo");
 echo fetch("root.rinit.new_key");
-var_dump(addr("root") !== $addr_root);       // reloaded -> new table
-$addr_root = addr("root");
-var_dump(addr("sub.child") === $addr_child); // untouched -> same table
+var_dump(changed("root") === true);       // reloaded -> out of block
+var_dump(changed("sub.child") === false); // untouched -> still in block
 
 /* 3. modify a file inside the sub-directory; the root mtime stays unchanged,
       only the sub-directory reloads */
@@ -67,9 +65,8 @@ clearstatcache();
 touch($subdir);
 
 echo fetch("sub.child.key");
-var_dump(addr("sub.child") !== $addr_child); // reloaded -> new table
-$addr_child = addr("sub.child");
-var_dump(addr("root") === $addr_root);       // root untouched this round
+var_dump(changed("sub.child") === true);  // reloaded -> out of block
+var_dump(changed("root") === true);       // still out of block from step 2
 
 /* 4. new file inside the sub-directory (adding an entry bumps sub mtime) */
 sleep(1);
@@ -104,6 +101,7 @@ file_put_contents($subdir . DIRECTORY_SEPARATOR . "child.ini", "key=\"v1\"\n");
 string(1) "1"
 string(6) "before"
 string(2) "v1"
+bool(true)
 bool(true)
 string(5) "after"
 string(5) "added"

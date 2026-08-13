@@ -27,7 +27,7 @@ function fetch($port, $suffix) {
 // ===== CASE A: modify file but NOT touch dir → mtime unchanged → no re-scan =====
 echo "== Case A: file changed, dir mtime unchanged ==\n";
 
-$port_a = yaconf_server_start($inidir, 18966);
+$port_a = yaconf_server_start($inidir, 18966, 0, 1);
 
 // Save original mtime for verification
 clearstatcache();
@@ -55,7 +55,7 @@ sleep(1);
 echo "\n== Case B: check_delay=3600 blocks re-scan ==\n";
 
 // Start a fresh server with huge check_delay
-$port_b = yaconf_server_start($inidir, 18967, 3600);
+$port_b = yaconf_server_start($inidir, 18967, 3600, 1);
 
 echo "B1: " . fetch($port_b, "rinit.rinit.val");
 // Modify file AND touch dir

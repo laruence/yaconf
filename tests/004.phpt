@@ -25,8 +25,16 @@ c.ini => %s
 
 d.ini => %s
 
+subdir/e.ini => %s
+
 
 config sub-directory => mtime
+subdir => %s
+
+
+compacted block => value
+compacted files => %s
+compacted size => %s
 
 Directive => Local Value => Master Value
 %a

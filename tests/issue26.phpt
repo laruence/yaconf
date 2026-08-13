@@ -3,6 +3,7 @@ ISSUE #26 Segmentation fault $php_fpm_BIN --daemonize $php_opts
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
+yaconf.mprotect=1
 yaconf.directory={PWD}/inis/issue26
 --FILE--
 <?php 

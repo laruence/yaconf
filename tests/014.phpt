@@ -3,6 +3,7 @@ Yaconf sub-directory support and Copy-on-Write
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
+yaconf.mprotect=1
 yaconf.directory={PWD}/inis/014/
 --FILE--
 <?php
@@ -38,11 +39,8 @@ var_dump(is_string($info["address"]));
 var_dump($info["val"]);
 var_dump(Yaconf::__debug_info("no.such.key"));
 
-/* COW: userland writes get a separated copy, the stored value (whose address
-   __debug_info exposes) never moves and never changes */
-function addr($key) { return Yaconf::__debug_info($key)["address"]; }
-
-$addr = addr("bar");
+/* COW: userland writes get a separated copy, the shared config never changes
+   (changed stays false because the data is still in the compacted block) */
 
 $d = Yaconf::get("bar");
 $d["x"] = "tampered";                     // plain write
@@ -68,21 +66,20 @@ $d = Yaconf::get("bar");
 sort($d);                                 // by-ref function argument
 var_dump(Yaconf::get("bar.x.role"));
 
-/* the shared container itself never moved */
-var_dump(addr("bar") === $addr);
+/* the shared config is still in the compacted block, never changed */
+var_dump(Yaconf::__debug_info("bar")["changed"] === false);
 
 /* same on a file container */
-$addr = addr("foo");
 $f = Yaconf::get("foo");
 $f["name"] = "hacked";
 var_dump(Yaconf::get("foo.name"));
-var_dump(addr("foo") === $addr);
+var_dump(Yaconf::__debug_info("foo")["changed"] === false);
 
 /* interned strings: writes on the copy don't touch the stored string */
 $s = Yaconf::get("bar.x.role");
 $s .= " tampered";
 var_dump(Yaconf::get("bar.x.role"));
-var_dump(addr("bar.x.role") === addr("bar.x.role"));
+var_dump(Yaconf::__debug_info("bar.x.role")["changed"] === false);
 ?>
 --EXPECT--
 string(3) "bar"
@@ -104,13 +101,15 @@ bool(true)
 bool(true)
 bool(true)
 bool(false)
-array(3) {
+array(4) {
   [0]=>
   string(3) "key"
   [1]=>
   string(7) "address"
   [2]=>
   string(3) "val"
+  [3]=>
+  string(7) "changed"
 }
 bool(true)
 string(9) "assistant"
