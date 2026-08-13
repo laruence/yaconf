@@ -31,6 +31,11 @@
 #endif
 
 /* cross-platform memory protection for compacted block */
+/* PHP 7.1 compatibility: HT_IS_INITIALIZED was added in 7.2 */
+#ifndef HT_IS_INITIALIZED
+# define HT_IS_INITIALIZED(ht) ((ht)->nTableMask != 0)
+#endif
+
 #if defined(_WIN32)
 # include <windows.h>
 # define YACONF_BLOCK_ALLOC(size)     VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
