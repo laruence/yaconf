@@ -938,8 +938,12 @@ static int yaconf_compact(void) /* {{{ */ {
 		zend_string *new_str = (zend_string*)cursor;
 
 		memcpy(new_str, str, alloc_size);
+#if PHP_VERSION_ID >= 70300
 		GC_SET_REFCOUNT(new_str, 1);
 		GC_TYPE_INFO(new_str) = GC_TYPE_INFO(str);
+#else
+		GC_REFCOUNT(new_str) = 1;
+#endif
 		new_str->h = str->h;
 		cursor += YACONF_ALIGNED_SIZE(alloc_size);
 
