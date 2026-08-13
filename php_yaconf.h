@@ -53,7 +53,10 @@ ZEND_BEGIN_MODULE_GLOBALS(yaconf)
 	time_t last_check;
 	time_t directory_mtime;
 #endif
-	ZEND_END_MODULE_GLOBALS(yaconf)
+#ifdef YACONF_HAVE_MPROTECT
+	zend_bool mprotect;
+#endif
+ZEND_END_MODULE_GLOBALS(yaconf)
 
 PHP_MINIT_FUNCTION(yaconf);
 PHP_MSHUTDOWN_FUNCTION(yaconf);

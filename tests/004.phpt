@@ -35,6 +35,7 @@ subdir => %s
 compacted block => value
 compacted files => %s
 compacted size => %s
+mprotect => enabled
 
 Directive => Local Value => Master Value
 %a
