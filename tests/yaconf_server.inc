@@ -2,14 +2,71 @@
 
 define("YACONF_SERVER_HOSTNAME", (getenv('YACONF_SERVER_HOSTNAME') ?: "localhost"));
 
-function yaconf_server_start($inidir, $port = 8965, $check_delay = 0) {
-	$doc_root = __DIR__ . DIRECTORY_SEPARATOR . "htdocs";
+/* lock handles must outlive yaconf_server_start(): closing one releases the
+   flock that tells the CLEAN sweep this docroot has a live owner */
+$GLOBALS['yaconf_test_locks'] = array();
+
+function yaconf_server_dir($port) {
+	/* the OS-assigned port doubles as the docroot suffix: unique per server */
+	return __DIR__ . DIRECTORY_SEPARATOR . "htdocs_" . $port;
+}
+
+function yaconf_pick_port($hostname) {
+	/* ask the OS for a free port: bind port 0, read back the assigned one */
+	$sock = stream_socket_server("tcp://" . $hostname . ":0", $errno, $errstr);
+	if (!$sock) {
+		die("Cannot allocate a free port: $errstr ($errno)");
+	}
+	$name = stream_socket_get_name($sock, false);
+	fclose($sock);
+	return (int)substr($name, strrpos($name, ":") + 1);
+}
+
+function yaconf_rmdir($dir) {
+	if (is_dir($dir)) {
+		$dp = opendir($dir);
+		while (($f = readdir($dp))) {
+			if (in_array($f, array('.', '..'))) {
+				continue;
+			}
+			$path = $dir . DIRECTORY_SEPARATOR . $f;
+			if (is_file($path)) {
+				unlink($path);
+			}
+		}
+		closedir($dp);
+		rmdir($dir);
+	}
+}
+
+function yaconf_server_start($inidir, $check_delay = 0) {
+	/* OS-assigned port; unique, and names the docroot */
+	$doc_root = NULL;
+	for ($i = 0; $i < 10; $i++) {
+		$port = yaconf_pick_port(YACONF_SERVER_HOSTNAME);
+		$doc_root = yaconf_server_dir($port);
+		if (@mkdir($doc_root, 0755)) {
+			break;
+		}
+		if (!file_exists($doc_root)) {
+			die("Cannot create test docroot '$doc_root'");
+		}
+		$doc_root = NULL;   /* name taken — try another port */
+	}
+	if (!$doc_root) {
+		die("Cannot find a free port for the yaconf test server");
+	}
+
 	$php_executable = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
 	$cmd_args = NULL;
 
-	if (!file_exists($doc_root)) {
-		mkdir($doc_root, 0755, true);
+	/* held exclusively for the lifetime of this process: the CLEAN sweep
+	   only removes docroots whose lock it can take */
+	$lock = fopen($doc_root . DIRECTORY_SEPARATOR . ".lock", "w");
+	if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+		die("Cannot lock test docroot '$doc_root'");
 	}
+	$GLOBALS['yaconf_test_locks'][] = $lock;
 
 	/* serves config values by key, stored-value addresses via __debug_info, and changed status */
 	file_put_contents($doc_root . DIRECTORY_SEPARATOR . "index.php", <<<'PHP'
@@ -72,27 +129,31 @@ PHP
 	}
 
 	register_shutdown_function(
-		function($handle) {
+		function($handle, $doc_root) {
 			proc_terminate($handle);
+			yaconf_rmdir($doc_root);
 		},
-		$handle);
+		$handle, $doc_root);
 
 	return $port;
 }
 
 function yaconf_server_cleanup() {
-	$dir = __DIR__ . DIRECTORY_SEPARATOR . "htdocs";
-	if (is_dir($dir)) {
-		$dp = opendir($dir);
-		while (($f = readdir($dp))) {
-			if (in_array($f, array('.', '..'))) {
-				continue;
-			}
-			$path = $dir . DIRECTORY_SEPARATOR . $f;
-			if (is_file($path)) {
-				unlink($path);
-			}
+	/* reclaim docroots left behind by crashed or aborted runs: a live FILE
+	   process holds an exclusive flock on <dir>/.lock, so only a directory
+	   whose lock we can take is stale.  No lock file means another process
+	   is mid-creation — leave it alone. */
+	foreach (glob(__DIR__ . DIRECTORY_SEPARATOR . "htdocs_*") as $dir) {
+		$lock_file = $dir . DIRECTORY_SEPARATOR . ".lock";
+		if (!is_file($lock_file)) {
+			continue;
 		}
-		rmdir($dir);
+		$fp = @fopen($lock_file, "r");
+		if ($fp && flock($fp, LOCK_EX | LOCK_NB)) {
+			fclose($fp);
+			yaconf_rmdir($dir);
+		} elseif ($fp) {
+			fclose($fp);
+		}
 	}
 }

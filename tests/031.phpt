@@ -23,7 +23,7 @@ if (!is_dir($subdir)) {
     mkdir($subdir, 0755, true);
 }
 
-define("YACONF_TEST_PORT", yaconf_server_start($inidir, 8970, 0, 1));
+define("YACONF_TEST_PORT", yaconf_server_start($inidir));
 define("YACONF_TEST_URL", "http://" . YACONF_SERVER_HOSTNAME . ":" . YACONF_TEST_PORT . "/index.php");
 
 function fetch($suffix) {
@@ -56,8 +56,8 @@ echo fetch("app.version");                      // survives intact
 --CLEAN--
 <?php
 include 'yaconf_server.inc';
-yaconf_server_cleanup();
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "031";
+yaconf_server_cleanup();
 @unlink($inidir . DIRECTORY_SEPARATOR . "emptydir" . DIRECTORY_SEPARATOR . "newfile.ini");
 @rmdir($inidir . DIRECTORY_SEPARATOR . "emptydir");
 ?>

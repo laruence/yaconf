@@ -25,7 +25,7 @@ function fetch($port, $suffix) {
 // ===== CASE A: check_delay=0 → immediate re-scan =====
 echo "== Case A: check_delay=0, immediate re-scan ==\n";
 
-$port = yaconf_server_start($inidir, 18968, 0, 1);
+$port = yaconf_server_start($inidir);
 
 echo "A1: " . fetch($port, "rinit.app.name");
 
@@ -45,7 +45,7 @@ echo "A2: " . fetch($port, "rinit.app.name");
 echo "\n== Case B: directory deleted, stat fails gracefully ==\n";
 
 // Use a separate server for this case
-$port_b = yaconf_server_start($inidir, 18969, 0, 1);
+$port_b = yaconf_server_start($inidir);
 
 echo "B1: " . fetch($port_b, "rinit.app.name");
 
@@ -63,8 +63,8 @@ rename($backup, $inidir);
 --CLEAN--
 <?php
 include 'yaconf_server.inc';
-yaconf_server_cleanup();
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "028";
+yaconf_server_cleanup();
 $backup = $inidir . "_backup";
 if (is_dir($backup)) {
     rename($backup, $inidir);

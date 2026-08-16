@@ -18,7 +18,7 @@ include "yaconf_server.inc";
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "023";
 $subdir = $inidir . DIRECTORY_SEPARATOR . "sub";
 
-define("YACONF_TEST_PORT", yaconf_server_start($inidir, 8965, 0, 1));
+define("YACONF_TEST_PORT", yaconf_server_start($inidir));
 define("YACONF_TEST_URL", "http://" . YACONF_SERVER_HOSTNAME . ":" . YACONF_TEST_PORT . "/index.php");
 
 function fetch($suffix) {
@@ -88,8 +88,8 @@ echo fetch("root.a");
 --CLEAN--
 <?php
 include 'yaconf_server.inc';
-yaconf_server_cleanup();
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "023";
+yaconf_server_cleanup();
 $subdir = $inidir . DIRECTORY_SEPARATOR . "sub";
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "root.ini", "a=1\n[rinit]\nfoo=\"before\"\nnumber=42\n");
 file_put_contents($subdir . DIRECTORY_SEPARATOR . "child.ini", "key=\"v1\"\n");
