@@ -27,6 +27,3 @@ jobs:
           php-version: ${{ matrix.php }}
           arch: x64
           ts: ${{ matrix.ts }}
-          # tests 020-022 spawn a local php server on fixed port 8965, so
-          # parallel workers collide; tests must run serially
-          test-workers: 1

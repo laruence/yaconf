@@ -50,4 +50,4 @@ jobs:
             make
       - name: Test
         run: |
-            make test
+            TEST_PHP_JOBS=$(nproc) make test
