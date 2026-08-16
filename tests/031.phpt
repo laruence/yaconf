@@ -33,14 +33,14 @@ function fetch($suffix) {
 
 function changed($name) {
     $ctx = stream_context_create(["http" => ["timeout" => 3]]);
-    return json_decode(trim(file_get_contents(YACONF_TEST_URL . "?changed=" . urlencode($name), false, $ctx)));
+    return trim(file_get_contents(YACONF_TEST_URL . "?changed=" . urlencode($name), false, $ctx));
 }
 
 /* 1. initial state: the empty sub-directory container is in the block */
 echo fetch("app.version");
 echo fetch("emptydir");
-var_dump(changed("emptydir") === false);
-var_dump(changed("app") === false);
+var_dump(changed("emptydir") === "0");
+var_dump(changed("app") === "0");
 
 /* 2. reload: first file ever inside the empty sub-directory — its container
       is an empty block table (hash slots only), the insert must detach it */
@@ -49,8 +49,8 @@ file_put_contents($subdir . DIRECTORY_SEPARATOR . "newfile.ini", "k=\"n1\"\n");
 touch($subdir);
 
 echo fetch("emptydir.newfile.k");
-var_dump(changed("emptydir.newfile") === true); // reloaded -> heap table
-var_dump(changed("app") === false);             // untouched -> still in block
+var_dump(changed("emptydir.newfile") === "1"); // reloaded -> heap table
+var_dump(changed("app") === "0");             // untouched -> still in block
 echo fetch("app.version");                      // survives intact
 ?>
 --CLEAN--

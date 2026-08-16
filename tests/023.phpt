@@ -3,7 +3,6 @@ Yaconf RINIT hot-reload of root and sub-directories
 --SKIPIF--
 <?php
 if (!extension_loaded("yaconf")) print "skip";
-if (!function_exists("json_decode")) print "skip json_decode not available";
 if (substr(PHP_OS, 0, 3) == 'WIN') die("skip doesn't work on Windows");
 if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supported in ZTS");
 ?>
@@ -29,7 +28,7 @@ function fetch($suffix) {
 
 function changed($name) {
     $ctx = stream_context_create(["http" => ["timeout" => 3]]);
-    return json_decode(trim(file_get_contents(YACONF_TEST_URL . "?changed=" . urlencode($name), false, $ctx)));
+    return trim(file_get_contents(YACONF_TEST_URL . "?changed=" . urlencode($name), false, $ctx));
 }
 
 // inis/023 layout:
@@ -40,8 +39,8 @@ function changed($name) {
 echo fetch("root.a");
 echo fetch("root.rinit.foo");
 echo fetch("sub.child.key");
-var_dump(changed("root") === false);
-var_dump(changed("sub.child") === false);
+var_dump(changed("root") === "0");
+var_dump(changed("sub.child") === "0");
 
 /* 2. modify the root file: root reloaded -> out of block, sub.child untouched */
 sleep(1);
@@ -54,8 +53,8 @@ touch($inidir);
 
 echo fetch("root.rinit.foo");
 echo fetch("root.rinit.new_key");
-var_dump(changed("root") === true);       // reloaded -> out of block
-var_dump(changed("sub.child") === false); // untouched -> still in block
+var_dump(changed("root") === "1");       // reloaded -> out of block
+var_dump(changed("sub.child") === "0"); // untouched -> still in block
 
 /* 3. modify a file inside the sub-directory; the root mtime stays unchanged,
       only the sub-directory reloads */
@@ -66,8 +65,8 @@ clearstatcache();
 touch($subdir);
 
 echo fetch("sub.child.key");
-var_dump(changed("sub.child") === true);  // reloaded -> out of block
-var_dump(changed("root") === true);       // still out of block from step 2
+var_dump(changed("sub.child") === "1");  // reloaded -> out of block
+var_dump(changed("root") === "1");       // still out of block from step 2
 
 /* 4. new file inside the sub-directory (adding an entry bumps sub mtime) */
 sleep(1);

@@ -22,7 +22,7 @@ if (isset($_GET['key'])) {
 	echo $info ? $info["address"] . "\n" : "NULL\n";
 } elseif (isset($_GET['changed'])) {
 	$info = Yaconf::__debug_info($_GET['changed']);
-	echo $info ? json_encode($info["changed"]) . "\n" : "null\n";
+	echo $info ? ($info["changed"] ? "1" : "0") . "\n" : "null\n";
 } else {
 	echo "yaconf_server_ready\n";
 }

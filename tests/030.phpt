@@ -39,15 +39,15 @@ function fetch($suffix) {
 
 function changed($name) {
     $ctx = stream_context_create(["http" => ["timeout" => 3]]);
-    return json_decode(trim(file_get_contents(YACONF_TEST_URL . "?changed=" . urlencode($name), false, $ctx)));
+    return trim(file_get_contents(YACONF_TEST_URL . "?changed=" . urlencode($name), false, $ctx));
 }
 
 /* 1. initial state: the full root table lives in the compacted block */
 echo fetch("app.version");
 echo fetch("a.v");
 echo fetch("sub.child.key");
-var_dump(changed("app") === false);
-var_dump(changed("sub.child") === false);
+var_dump(changed("app") === "0");
+var_dump(changed("sub.child") === "0");
 
 /* 2. reload #1: content update of an existing file.  Only the value is swapped;
       the root table needs no new slot, so it stays in the block.  The replaced
@@ -56,8 +56,8 @@ sleep(1);
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "app.ini", "version=2\n");
 touch($inidir);
 echo fetch("app.version");
-var_dump(changed("app") === true);        // replaced -> out of block
-var_dump(changed("sub.child") === false); // untouched -> still in block
+var_dump(changed("app") === "1");        // replaced -> out of block
+var_dump(changed("sub.child") === "0"); // untouched -> still in block
 
 /* 3. reload #2: update another existing file, still no new root key */
 sleep(1);
@@ -71,7 +71,7 @@ echo fetch("a.v");
 sleep(1);
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "added.ini", "x=\"new\"\n");
 echo fetch("added.x");
-var_dump(changed("sub.child") === false); // sub still in block -> root detached, not tree rebuilt
+var_dump(changed("sub.child") === "0"); // sub still in block -> root detached, not tree rebuilt
 echo fetch("app.version");
 echo fetch("a.v");
 echo fetch("sub.child.key");
