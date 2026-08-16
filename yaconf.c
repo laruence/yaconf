@@ -37,6 +37,7 @@
 
 ZEND_DECLARE_MODULE_GLOBALS(yaconf);
 
+/* true globals */
 static HashTable *ini_containers;
 static HashTable *parsed_ini_files;
 static HashTable *parsed_ini_dirs;
@@ -46,14 +47,34 @@ static zval active_ini_file_section;
 static int yaconf_parse_persistent = 1;
 
 /* compacted block storage */
-static char    *yaconf_block = NULL;
+static char    *yaconf_block = (void *)0x0;
 static size_t   yaconf_block_size = 0;
-static Bucket   yaconf_uninitialized_bucket;
+
+static zend_always_inline int yaconf_ptr_in_block(const void *ptr) /* {{{ */ {
+	return (const char*)ptr < yaconf_block + yaconf_block_size
+		&& (const char*)ptr >= yaconf_block;
+} /* }}} */
+
+static zend_always_inline int yaconf_data_in_block(HashTable *ht) /* {{{ */ {
+	/* only the data region moves when a table is detached, so this is the
+	   test for "the table still has to be handled carefully" */
+	return yaconf_ptr_in_block(HT_GET_DATA_ADDR(ht));
+} /* }}} */
+
+static zend_always_inline int yaconf_value_in_block(const zval *zv) /* {{{ */ {
+	/* scalar values sit inside the bucket array, strings and sub-arrays are
+	   separate block allocations.  A container whose data region has been
+	   detached to the heap still holds block-resident values, so the
+	   decision must be based on the value's pointer, not the slot's */
+	ZEND_ASSERT(Z_TYPE_P(zv) == IS_STRING || Z_TYPE_P(zv) == IS_ARRAY);
+	return yaconf_ptr_in_block(Z_PTR_P(zv));
+} /* }}} */
 
 zend_class_entry *yaconf_ce;
 
 static void php_yaconf_zval_persistent(zval *zv, zval *rv);
 static void php_yaconf_zval_dtor(zval *pzval);
+static void yaconf_ht_detach(HashTable *ht);
 
 typedef struct _yaconf_filenode {
 	zend_string *filename;   /* relative path from yaconf.directory */
@@ -72,6 +93,20 @@ typedef struct _yaconf_dirnode {
 #define PALLOC_HASHTABLE(ht) do { \
 	(ht) = (HashTable*)pemalloc(sizeof(HashTable), 1); \
 } while(0)
+
+/* {{{ two-phase compaction: consolidate all config arrays + strings into one block
+ *
+ *   parse:  ini files → persistent tree (individual pemalloc pieces)
+ *   compact: walk tree → collect strings & HashTables → calc total size →
+ *            allocate one block → copy strings (dedup by content) →
+ *            copy HashTables (remap pointers) → free old tree
+ *
+ * After compaction, ini_containers and dirnode containers point into the
+ * single block.  MSHUTDOWN just frees the block.  Hot reload (RINIT) rebuilds
+ * the whole tree from scratch and re-compacts.
+ */
+#define YACONF_ALIGNED_SIZE(size) (((size) + 7UL) & ~7UL)
+/* }}} */
 
 /* {{{ yaconf_module_entry
  */
@@ -190,21 +225,50 @@ static zend_string* php_yaconf_str_persistent(char *str, size_t len) /* {{{ */ {
 }
 /* }}} */
 
+static int yaconf_hash_need_detach(HashTable *ht) /* {{{ */ {
+	/* new key into a block table: the compacted region holds a full
+	   nTableSize bucket area (see yaconf_compact_copy_ht), so inserts
+	   stay inside it until the table grows full.  Detach only when
+	   this write would spill past that region or trigger a resize
+	   whose pefree() would free block memory; empty tables carry no
+	   buckets at all, so their first insert must detach too */
+	if (UNEXPECTED(yaconf_data_in_block(ht)) &&
+			(ht->nNumUsed == 0 || ht->nNumUsed >= ht->nTableSize)) {
+		return 1;
+	}
+
+	return 0;
+}
+/* }}} */
+
 static zval* php_yaconf_symtable_update(HashTable *ht, char *key, size_t len, zval *zv) /* {{{ */ {
 	zend_ulong idx;
 	zval *element;
 	
-	if (ZEND_HANDLE_NUMERIC_STR(key, len, idx)) {
+	if (UNEXPECTED(ZEND_HANDLE_NUMERIC_STR(key, len, idx))) {
 		if ((element = zend_hash_index_find(ht, idx))) {
-			/* skip dtor: old value is in the compacted block, freed as a whole in MSHUTDOWN */
+			/* a value still living in the compacted block is freed with the
+			   whole block at MSHUTDOWN; anything else needs an explicit dtor */
+			if (!yaconf_value_in_block(element)) {
+				php_yaconf_zval_dtor(element);
+			}
 			ZVAL_COPY_VALUE(element, zv);
 		} else {
+			if (UNEXPECTED(yaconf_hash_need_detach(ht))) {
+				yaconf_ht_detach(ht);
+			}
 			element = zend_hash_index_add(ht, idx, zv);
 		}
 	} else {
 		if ((element = zend_hash_str_find(ht, key, len))) {
+			if (!yaconf_value_in_block(element)) {
+				php_yaconf_zval_dtor(element);
+			}
 			ZVAL_COPY_VALUE(element, zv);
 		} else {
+			if (UNEXPECTED(yaconf_hash_need_detach(ht))) {
+				yaconf_ht_detach(ht);
+			}
 			element = zend_hash_add(ht, php_yaconf_str_persistent(key, len), zv);
 		}
 	}
@@ -692,84 +756,93 @@ static void php_yaconf_check_directories(const char *root) /* {{{ */ {
 }
 /* }}} */
 
-/* {{{ two-phase compaction: consolidate all config arrays + strings into one block
- *
- *   parse:  ini files → persistent tree (individual pemalloc pieces)
- *   compact: walk tree → collect strings & HashTables → calc total size →
- *            allocate one block → copy strings (dedup by content) →
- *            copy HashTables (remap pointers) → free old tree
- *
- * After compaction, ini_containers and dirnode containers point into the
- * single block.  MSHUTDOWN just frees the block.  Hot reload (RINIT) rebuilds
- * the whole tree from scratch and re-compacts.
- */
-#define YACONF_ALIGNED_SIZE(size) (((size) + 7UL) & ~7UL)
-#define YACONF_HASH_SIZE(nTableMask) \
-    (((size_t)(uint32_t)-(int32_t)(nTableMask)) * sizeof(uint32_t))
-#define YACONF_HT_USED_SIZE(ht) \
-    (YACONF_HASH_SIZE((ht)->nTableMask) + (size_t)(ht)->nNumUsed * sizeof(Bucket))
-/* }}} */
+static void yaconf_ht_detach(HashTable *ht) /* {{{ */ {
 
-/* collect all unique strings and HashTable pointers from the tree */
+	/*  detach a block-resident HashTable's data region to the persistent heap
+	 *
+	 * Copy the compacted region into an independent pemalloc() allocation so the
+	 * engine may resize it on its own: the growth path in zend_hash_do_resize()
+	 * reallocates through the table's persistent flag and frees the old region,
+	 * which is only legal once that region is no longer part of the block.
+	 *
+	 * The region is copied as-is.  yaconf_compact_copy_ht already stores every
+	 * table in canonical engine layout (hash slots followed by a full nTableSize
+	 * bucket area, an empty one is hash-region-only), and hash chains reference
+	 * buckets by relative index, so the copy relocates the table intact.
+	 *
+	 * The old block region turns into dead bytes, reclaimed with the whole
+	 * block at MSHUTDOWN.
+	 */
+	char *data;
+
+	data = (char*)pemalloc(HT_HASH_SIZE(ht->nTableMask) + HT_DATA_SIZE(ht->nTableSize), 1);
+	if (UNEXPECTED(!data)) {
+		zend_error(E_ERROR, "yaconf: out of memory detaching config table");
+	}
+
+	memcpy(data, HT_GET_DATA_ADDR(ht), HT_HASH_SIZE(ht->nTableMask) + HT_DATA_SIZE(ht->nTableSize));
+	HT_SET_DATA_ADDR(ht, data);
+} /* }}} */
+
 static void yaconf_compact_collect_zval(zval *zv, HashTable *str_set, HashTable *ht_set) /* {{{ */ {
+	/* collect all unique strings and HashTable pointers from the tree */
 	if (Z_TYPE_P(zv) == IS_STRING) {
 		zend_string *str = Z_STR_P(zv);
 		zend_hash_str_update_ptr(str_set, ZSTR_VAL(str), ZSTR_LEN(str), str);
 	} else if (Z_TYPE_P(zv) == IS_ARRAY) {
 		HashTable *ht = Z_ARRVAL_P(zv);
-		if (!zend_hash_index_find_ptr(ht_set, (zend_ulong)(uintptr_t)ht)) {
-			zend_string *key;
-			zval *val;
-			zend_hash_index_update_ptr(ht_set, (zend_ulong)(uintptr_t)ht, ht);
-			ZEND_HASH_FOREACH_STR_KEY_VAL(ht, key, val) {
-				if (key) {
-					zend_hash_str_update_ptr(str_set, ZSTR_VAL(key), ZSTR_LEN(key), key);
-				}
-				yaconf_compact_collect_zval(val, str_set, ht_set);
-			} ZEND_HASH_FOREACH_END();
-		}
+		zend_string *key;
+		zval *val;
+
+		/* the parsed config is strictly a tree, never a DAG: every container
+		   comes from php_yaconf_hash_init() and section inheritance deep
+		   copies, so each table is reached exactly once — no visited check.
+		   ht_set only feeds step 7 (freeing the old structs) */
+		zend_hash_index_update_ptr(ht_set, (zend_ulong)(uintptr_t)ht, ht);
+		ZEND_HASH_FOREACH_STR_KEY_VAL(ht, key, val) {
+			if (key) {
+				zend_hash_str_update_ptr(str_set, ZSTR_VAL(key), ZSTR_LEN(key), key);
+			}
+			yaconf_compact_collect_zval(val, str_set, ht_set);
+		} ZEND_HASH_FOREACH_END();
 	}
 } /* }}} */
 
-/* calc size of one HashTable: struct + data region */
 static void yaconf_compact_calc_ht(HashTable *ht, size_t *total) /* {{{ */ {
-	if (!HT_IS_INITIALIZED(ht) || ht->nNumUsed == 0) {
-		return;
-	}
+	/* calc size of one HashTable: struct + data region */
 	*total += YACONF_ALIGNED_SIZE(sizeof(zend_array));
 
-	/* ref: zend_persist_calc.c zend_hash_persist_calc */
-	if (ht->nNumUsed > HT_MIN_SIZE && ht->nNumUsed < (uint32_t)(-(int32_t)ht->nTableMask) / 4) {
-		/* compact sparse table */
-		uint32_t hash_size = (uint32_t)(-(int32_t)ht->nTableMask);
-		while (hash_size >> 2 > ht->nNumUsed) {
-			hash_size >>= 1;
-		}
-		*total += YACONF_ALIGNED_SIZE(hash_size * sizeof(uint32_t) + ht->nNumUsed * sizeof(Bucket));
-	} else {
-		*total += YACONF_ALIGNED_SIZE(YACONF_HT_USED_SIZE(ht));
+	if (!HT_IS_INITIALIZED(ht) || ht->nNumUsed == 0) {
+		/* empty or lazy table: a full-sized hash region is still required —
+		   a zeroed slot would make lookups loop forever */
+		*total += YACONF_ALIGNED_SIZE(HT_HASH_SIZE(ht->nTableMask));
+		return;
 	}
+
+	/* ref: zend_persist_calc.c zend_hash_persist_calc; the bucket area is
+	   grown to nTableSize (not nNumUsed) so reloads can add new keys in
+	   place without touching the block until the table actually fills up */
+	*total += YACONF_ALIGNED_SIZE(HT_HASH_SIZE(ht->nTableMask) + (size_t)ht->nTableSize * sizeof(Bucket));
 } /* }}} */
 
-/* helper: remap a string via content lookup */
-static zend_always_inline zend_string *yaconf_compact_str(HashTable *str_xlat, zend_string *s) {
+static zend_always_inline zend_string *yaconf_compact_str(HashTable *str_xlat, zend_string *s) /* {{{ */ {
+	/* helper: remap a string via content lookup */
 	return zend_hash_str_find_ptr(str_xlat, ZSTR_VAL(s), ZSTR_LEN(s));
-}
+} /* }}} */
 
-/* helper: remap a HashTable via old-ptr lookup */
-static zend_always_inline HashTable *yaconf_compact_ht(HashTable *ht_xlat, HashTable *ht) {
+static zend_always_inline HashTable *yaconf_compact_ht(HashTable *ht_xlat, HashTable *ht) /* {{{ */ {
+	/* helper: remap a HashTable via old-ptr lookup */
 	return zend_hash_index_find_ptr(ht_xlat, (zend_ulong)(uintptr_t)ht);
-}
+} /* }}} */
 
-/* copy one HashTable (and its children) into the block, remap pointers */
 static void yaconf_compact_copy_ht(HashTable *src, char **cursor, HashTable *str_xlat, HashTable *ht_xlat) /* {{{ */ {
+	/* copy one HashTable (and its children) into the block, remap pointers */
 	zend_array *dst;
 	uint32_t i;
-	Bucket *src_bucket, *dst_bucket;
+	Bucket *dst_bucket;
 
-	if (zend_hash_index_find_ptr(ht_xlat, (zend_ulong)(uintptr_t)src)) {
-		return; /* already copied */
-	}
+	/* strictly a tree (see yaconf_compact_collect_zval), each table is
+	   visited exactly once — no "already copied" check */
 
 	/* copy zend_array struct */
 	dst = (zend_array*)*cursor;
@@ -780,57 +853,26 @@ static void yaconf_compact_copy_ht(HashTable *src, char **cursor, HashTable *str
 	dst->pDestructor = NULL;
 	dst->nInternalPointer = HT_INVALID_IDX;
 
-	if (src->nNumUsed == 0) {
-		/* empty table — point to a sentinel, no data region needed */
-		dst->nTableMask = HT_MIN_MASK;
-		HT_SET_DATA_ADDR(dst, &yaconf_uninitialized_bucket);
+	if (UNEXPECTED(!HT_IS_INITIALIZED(src) || src->nNumUsed == 0)) {
+		/* empty or lazy table: a full-sized region of HT_INVALID_IDX slots,
+		   see yaconf_compact_calc_ht */
+		size_t hash_bytes = HT_HASH_SIZE(src->nTableMask);
+		char *data = *cursor;
+		*cursor += YACONF_ALIGNED_SIZE(hash_bytes);
+		memset(data, HT_INVALID_IDX, hash_bytes);
+		HT_SET_DATA_ADDR(dst, data);
+#if PHP_VERSION_ID >= 70400
+		/* lazy tables arrive with HASH_FLAG_UNINITIALIZED set; the region is
+		   real now, so clear it — otherwise an engine access path that
+		   real-inits empty tables would reallocate block memory */
+		dst->u.flags &= ~HASH_FLAG_UNINITIALIZED;
+#endif
 		return;
-	}
-
-	if (src->nNumUsed > HT_MIN_SIZE && src->nNumUsed < (uint32_t)(-(int32_t)src->nTableMask) / 4) {
-		/* compact sparse table: rebuild hash with smaller size */
-		uint32_t hash_size = (uint32_t)(-(int32_t)src->nTableMask);
-		while (hash_size >> 2 > src->nNumUsed) {
-			hash_size >>= 1;
-		}
-		dst->nTableMask = (uint32_t)(-(int32_t)hash_size);
-
-		{
-			char *data = *cursor;
-			size_t hash_bytes = hash_size * sizeof(uint32_t);
-			size_t bucket_bytes = src->nNumUsed * sizeof(Bucket);
-			*cursor += YACONF_ALIGNED_SIZE(hash_bytes + bucket_bytes);
-
-			memset(data, HT_INVALID_IDX, hash_bytes);
-			dst_bucket = (Bucket*)(data + hash_bytes);
-			memcpy(dst_bucket, src->arData, bucket_bytes);
-			HT_SET_DATA_ADDR(dst, data);
-
-			for (i = 0; i < src->nNumUsed; i++) {
-				Bucket *b = &dst_bucket[i];
-				if (Z_TYPE(b->val) == IS_UNDEF) continue;
-
-				if (b->key) {
-					b->key = yaconf_compact_str(str_xlat, b->key);
-				}
-				if (Z_TYPE(b->val) == IS_STRING) {
-					Z_STR(b->val) = yaconf_compact_str(str_xlat, Z_STR(b->val));
-				} else if (Z_TYPE(b->val) == IS_ARRAY) {
-					yaconf_compact_copy_ht(Z_ARRVAL(b->val), cursor, str_xlat, ht_xlat);
-					Z_ARRVAL(b->val) = yaconf_compact_ht(ht_xlat, Z_ARRVAL(b->val));
-				}
-
-				/* rehash */
-				{
-					uint32_t nIndex = b->h | dst->nTableMask;
-					Z_NEXT(b->val) = HT_HASH(dst, nIndex);
-					HT_HASH(dst, nIndex) = HT_IDX_TO_HASH(i);
-				}
-			}
-		}
 	} else {
-		/* copy data region as-is */
-		size_t region_size = YACONF_HT_USED_SIZE(src);
+		/* copy the data region as-is; the engine's canonical layout already
+		   reserves a full nTableSize bucket area, keep the trailing slack
+		   buckets so reloads can add keys in place (see calc_ht) */
+		size_t region_size = HT_HASH_SIZE(src->nTableMask) + HT_DATA_SIZE(src->nTableSize);
 		char *data = *cursor;
 		*cursor += YACONF_ALIGNED_SIZE(region_size);
 		memcpy(data, HT_GET_DATA_ADDR(src), region_size);
@@ -854,8 +896,8 @@ static void yaconf_compact_copy_ht(HashTable *src, char **cursor, HashTable *str
 	}
 } /* }}} */
 
-/* main entry: compact the parsed tree into one block */
 static int yaconf_compact(void) /* {{{ */ {
+	/* main entry: compact the parsed tree into one block */
 	HashTable str_set, ht_set, str_xlat, ht_xlat;
 	zend_string *str;
 	HashTable *ht;
@@ -926,6 +968,22 @@ static int yaconf_compact(void) /* {{{ */ {
 	yaconf_compact_copy_ht(ini_containers, &cursor, &str_xlat, &ht_xlat);
 	ini_containers = yaconf_compact_ht(&ht_xlat, ini_containers);
 
+	/* the block lives past any request, so flag every block table persistent:
+	   when a detached table is later grown by the engine's own resize path,
+	   pemalloc/pefree must go through the persistent allocator */
+	{
+		HashTable *tmp;
+		ZEND_HASH_FOREACH_PTR(&ht_xlat, tmp) {
+			if (tmp) {
+#if PHP_VERSION_ID >= 70300
+				GC_ADD_FLAGS(tmp, IS_ARRAY_PERSISTENT);
+#else
+				tmp->u.flags |= HASH_FLAG_PERSISTENT;
+#endif
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
+
 	if (parsed_ini_dirs) {
 		ZEND_HASH_FOREACH_PTR(parsed_ini_dirs, node) {
 			HashTable *new_container = yaconf_compact_ht(&ht_xlat, node->container);
@@ -957,8 +1015,8 @@ static int yaconf_compact(void) /* {{{ */ {
 	return 1;
 } /* }}} */
 
-/* free the compacted block */
 static void yaconf_compact_free(void) /* {{{ */ {
+	/* free the compacted block */
 	if (yaconf_block) {
 		pefree(yaconf_block, 1);
 		yaconf_block = NULL;
@@ -1164,6 +1222,34 @@ PHP_RINIT_FUNCTION(yaconf)
 /* }}} */
 #endif
 
+static void yaconf_containers_destroy(HashTable *ht) /* {{{ */ {
+	/* free the containers tree: block-resident parts go with the block,
+	   detached data regions, heap structs and reloaded values are freed here */
+	zend_string *key;
+	zval *element;
+	int detached_struct = !yaconf_ptr_in_block(ht);
+
+	ZEND_HASH_FOREACH_STR_KEY_VAL(ht, key, element) {
+		/* keys are individually pemalloc'd (flagged interned for the engine's
+		   sake), only block copies live in the block and are skipped */
+		if (key && !yaconf_ptr_in_block(key)) {
+			pefree(key, 1);
+		}
+		if (!yaconf_value_in_block(element)) {
+			php_yaconf_zval_dtor(element);
+		}
+	} ZEND_HASH_FOREACH_END();
+
+	if (!yaconf_ptr_in_block(HT_GET_DATA_ADDR(ht))) {
+		/* the data region was detached or belongs to a reloaded heap table:
+		   its slots/buckets are already freed above, free the region itself */
+		pefree(HT_GET_DATA_ADDR(ht), 1);
+	}
+	if (detached_struct) {
+		pefree(ht, 1);
+	}
+} /* }}} */
+
 /* {{{ PHP_MSHUTDOWN_FUNCTION
  */
 PHP_MSHUTDOWN_FUNCTION(yaconf)
@@ -1179,6 +1265,8 @@ PHP_MSHUTDOWN_FUNCTION(yaconf)
 	}
 
 	if (ini_containers) {
+		yaconf_containers_destroy(ini_containers);
+		ini_containers = NULL;
 		yaconf_compact_free();
 	}
 
