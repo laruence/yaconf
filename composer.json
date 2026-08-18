@@ -6,17 +6,15 @@
   "require": {
     "php": ">=7.0"
   },
-  "replace": {
-    "ext-yaconf": "*"
-  },
   "php-ext": {
-    "extension-name": "ext-yaconf",
-	"download-url-method": ["pre-packaged-binary", "composer-default"],
-	"priority": 73,
+    "extension-name": "yaconf",
+    "download-url-method": ["pre-packaged-binary", "composer-default"],
+    "priority": 73,
     "configure-options": [
       {
         "name": "enable-yaconf",
-        "description": "whether to enable yaconf support"
+        "description": "whether to enable yaconf support",
+        "needs-value": false
       }
     ]
   }
