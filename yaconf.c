@@ -850,7 +850,15 @@ static void yaconf_compact_copy_ht(HashTable *src, char **cursor, HashTable *str
 	memcpy(dst, src, sizeof(zend_array));
 	zend_hash_index_update_ptr(ht_xlat, (zend_ulong)(uintptr_t)src, dst);
 
-	dst->pDestructor = NULL;
+	/* the engine dup()s these tables on first write (SEPARATE_ARRAY): PHP 7.0's
+	   zend_array_dup() inherits source->pDestructor, and a dup destroyed with a
+	   NULL destructor skips every value dtor, leaking the zend_reference that
+	   reference-iteration (foreach &$v) creates in the buckets.  Block tables
+	   themselves are never destroyed individually (the whole block is pefree()d
+	   at MSHUTDOWN), so setting the dtor here only affects the dup; >= 7.1
+	   zend_array_dup() overwrites it with ZVAL_PTR_DTOR anyway (php commit
+	   b711a96). */
+	dst->pDestructor = ZVAL_PTR_DTOR;
 	dst->nInternalPointer = HT_INVALID_IDX;
 
 	if (UNEXPECTED(!HT_IS_INITIALIZED(src) || src->nNumUsed == 0)) {
