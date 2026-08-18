@@ -3,6 +3,14 @@
   "type": "php-ext",
   "license": "PHP-3.01",
   "description": "A PHP Persistent Configurations Container",
+  "keywords": ["configuration", "extension"],
+  "homepage": "https://github.com/laruence/yaconf",
+  "authors": [
+    {
+      "name": "Laruence",
+      "homepage": "https://www.laruence.com"
+    }
+  ],
   "require": {
     "php": ">=7.0"
   },
