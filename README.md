@@ -14,6 +14,8 @@ Yaconf is a configuration container. It parses INI files and stores the result i
 
 Yaconf uses an **immutable data + Copy-on-Write** design rather than shared memory (shmget/mmap). Parsed configs are stored in persistent `zend_array`s marked `IS_ARRAY_IMMUTABLE` — and all keys are interned as permanent strings. Because the hash tables are immutable, PHP-FPM workers forked from the master process share the **same physical memory pages** via the OS kernel's COW mechanism. As long as the configuration doesn't change, memory is allocated only once — no matter how many workers are running. When a config file is modified and Yaconf reloads it (in non-ZTS mode), the kernel copies only the changed pages on write, isolating the new config from the old.
 
+Since 1.2.0, once parsing finishes Yaconf **compacts the whole config tree into a single contiguous block** (two-phase compaction): it walks the parsed tree, collects every string and hash table, allocates one block, and copies them in — deduplicating strings by content and re-laying out every hash table into canonical engine layout. All the scattered per-node allocations from the parse phase are freed. The win is twofold: fewer individual allocations means lower memory overhead, and a contiguous layout means better cache locality and fewer touched pages when workers COW the config. When a config file changes, Yaconf rebuilds and re-compacts from scratch; tables that need to grow are **detached** onto the persistent heap first so the engine can resize them without touching the block.
+
 > **⚠ ZTS (Thread-Safe) builds**: Yaconf loads configurations at startup as usual, but automatic reloading is not available (`yaconf.check_delay` is NTS-only). Restart PHP to pick up config changes.
 
 ### When to use Yaconf
@@ -28,10 +30,20 @@ Yaconf flips this: **parse once at startup, serve from memory forever.** The par
 
 Yaconf is for static configuration. For runtime caching — database query results, computed data, HTML fragments, ephemeral tokens — use [Yac](https://github.com/laruence/yac), which shares the same "local first, zero dependency" design philosophy.
 
+## What's new in 1.2.0
+
+- **Sub-directory support**: INI files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name — `sub/x.ini` is addressed as `"sub.x"`. Sub-directories are tracked for hot reload too.
+- **Compact block storage**: all parsed configurations are consolidated into a single contiguous block after startup (see the [Introduction](#introduction)) — lower memory overhead, better cache locality, and fewer pages touched when workers COW.
+- **PHP PIE support**: installable via [PIE](https://github.com/php/pie), the PHP Installer for Extensions.
+- A name conflict between an INI file and a same-named directory now raises a warning; the directory wins and the file is skipped.
+- Fixed memory leaks when a dot-notation key overrides a scalar value, and on foreach-by-ref over compact block tables with PHP 7.0.
+- `Yaconf::__debug_info()` now reports the stored value's address.
+
 ## Features
 
 - Fast, light
 - Zero-copy when accessing configurations
+- Configs consolidated into one compacted block — lower memory, better cache locality (since 1.2.0)
 - Supports sections and section inheritance (up to 16 levels deep)
 - Supports sub-directories of arbitrary depth (up to 16 levels) — `sub/x.ini` is addressed as `"sub.x"` (since 1.2.0)
 - Configurations reload automatically after changes (non-ZTS only), including sub-directories
@@ -45,6 +57,14 @@ Yaconf is a PECL extension, simply install it by:
 
 ```bash
 $ pecl install yaconf
+```
+
+### Install via PIE (since 1.2.0)
+
+Yaconf can also be installed with [PIE](https://github.com/php/pie), the PHP Installer for Extensions:
+
+```bash
+$ pie install laruence/yaconf
 ```
 
 ### Compile from source
