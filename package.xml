@@ -1,5 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?> 
-<package xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" packagerversion="1.4.7" version="2.0" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0 http://pear.php.net/dtd/tasks-1.0.xsd http://pear.php.net/dtd/package-2.0 http://pear.php.net/dtd/package-2.0.xsd"> 
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" packagerversion="1.4.7" version="2.0" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0 http://pear.php.net/dtd/tasks-1.0.xsd http://pear.php.net/dtd/package-2.0 http://pear.php.net/dtd/package-2.0.xsd">
  <name>yaconf</name>
  <channel>pecl.php.net</channel>
  <summary>PHP Persistent Configurations Container</summary>
@@ -10,8 +10,8 @@
   <email>laruence@php.net</email>
   <active>yes</active>
  </lead>
- <date>2026-08-12</date>
- <time>16:40:43</time>
+ <date>2026-08-18</date>
+ <time>12:25:34</time>
  <version>
   <release>1.2.0</release>
   <api>1.2.0</api>
@@ -24,12 +24,15 @@
  <notes>
   - Added sub-directory support: INI files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name ('sub/x.ini' as 'sub.x')
   - Added hot-reload tracking of sub-directories
+  - Optimized config storage with compact block (two-phase compaction)
+  - Added PHP PIE support
   - A name conflict between an INI file and a same-named directory now raises a warning: the directory wins and the file is skipped
   - Fixed memory leaks when a dot-notation key overrides a scalar value
+  - Fixed memory leak on foreach-by-ref over compact block tables with PHP 7.0
   - Changed Yaconf::__debug_info() to report the stored value's address
  </notes>
- <contents> 
-  <dir name="/"> 
+ <contents>
+  <dir name="/">
    <file name="config.m4"    role="src" />
    <file name="php_yaconf.h" role="src" />
    <file name="yaconf_arginfo.h" role="src" />
@@ -65,13 +68,24 @@
     <file name="021.phpt" role="test" />
     <file name="022.phpt" role="test" />
     <file name="023.phpt" role="test" />
-	    <file name="yaconf_server.inc" role="test" />
+    <file name="024.phpt" role="test" />
+    <file name="025.phpt" role="test" />
+    <file name="026.phpt" role="test" />
+    <file name="027.phpt" role="test" />
+    <file name="028.phpt" role="test" />
+    <file name="029.phpt" role="test" />
+    <file name="030.phpt" role="test" />
+    <file name="031.phpt" role="test" />
+    <file name="032.phpt" role="test" />
+    <file name="yaconf_server.inc" role="test" />
     <dir name="inis">
      <dir name="002">
       <file name="basic.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="003">
       <file name="section.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="004">
       <file name="a.ini" role="test" />
@@ -79,34 +93,46 @@
       <file name="d.ini" role="test" />
       <file name="c.ini" role="test" />
       <file name="a.ini.OLD" role="test" />
+      <dir name="subdir">
+       <file name="e.ini" role="test" />
+      </dir>
      </dir>
      <dir name="005">
       <file name="a.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="006">
       <file name="a.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="009">
       <file name="a.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="010">
       <file name="a.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="011">
       <file name="011.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="issue26">
       <file name="issue26.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="issue05">
       <file name="issue05.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="issue14">
       <file name="issue14.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="issue67">
       <file name="a.ini" role="test" />
       <file name="b.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="014">
       <file name="foo.ini" role="test" />
@@ -119,47 +145,94 @@
      </dir>
      <dir name="015">
       <file name="defaults.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="016">
       <file name="dot.ini" role="test" />
       <file name="prefix.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="017">
       <file name="sections.ini" role="test" />
       <file name="inherit.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="018">
       <file name="types.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
-     <dir name="019" />
+     <dir name="019">
+      <file name="foo.ini" role="test" />
+     </dir>
      <dir name="021">
       <file name="rinit.ini" role="test" />
+      <file name="foo.ini" role="test" />
      </dir>
      <dir name="023">
       <file name="root.ini" role="test" />
+      <file name="foo.ini" role="test" />
       <dir name="sub">
        <file name="child.ini" role="test" />
       </dir>
      </dir>
+     <dir name="024">
+      <file name="config.ini" role="test" />
+      <file name="notes.md" role="test" />
+      <file name="readme.txt" role="test" />
+     </dir>
+     <dir name="025">
+      <file name="deep.ini" role="test" />
+      <file name="normal.ini" role="test" />
+     </dir>
+     <dir name="026">
+      <file name="scalar_parent.ini" role="test" />
+     </dir>
+     <dir name="027">
+      <file name="empty_section.ini" role="test" />
+     </dir>
+     <dir name="028">
+      <file name="rinit.ini" role="test" />
+     </dir>
+     <dir name="029">
+      <file name="app.ini" role="test" />
+     </dir>
+     <dir name="030">
+      <file name="a.ini" role="test" />
+      <file name="app.ini" role="test" />
+      <file name="b.ini" role="test" />
+      <file name="c.ini" role="test" />
+      <file name="d.ini" role="test" />
+      <file name="e.ini" role="test" />
+      <file name="f.ini" role="test" />
+      <dir name="sub">
+       <file name="child.ini" role="test" />
+      </dir>
+     </dir>
+     <dir name="031">
+      <file name="app.ini" role="test" />
+     </dir>
+     <dir name="032">
+      <file name="sparse.ini" role="test" />
+     </dir>
     </dir>
    </dir>
-  </dir> 
- </contents> 
- <dependencies> 
-  <required> 
-   <php> 
-    <min>7.0.0</min> 
-   </php> 
-   <pearinstaller> 
-    <min>1.4.0</min> 
-   </pearinstaller> 
-  </required> 
- </dependencies> 
+  </dir>
+ </contents>
+ <dependencies>
+  <required>
+   <php>
+    <min>7.0.0</min>
+   </php>
+   <pearinstaller>
+    <min>1.4.0</min>
+   </pearinstaller>
+  </required>
+ </dependencies>
  <providesextension>yaconf</providesextension>
  <extsrcrelease />
  <changelog>
   <release>
-   <date>2026-08-12</date>
+   <date>2026-08-18</date>
    <version>
     <release>1.2.0</release>
     <api>1.2.0</api>
@@ -172,8 +245,11 @@
    <notes>
     - Added sub-directory support: INI files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name ('sub/x.ini' as 'sub.x')
     - Added hot-reload tracking of sub-directories
+    - Optimized config storage with compact block (two-phase compaction)
+    - Added PHP PIE support
     - A name conflict between an INI file and a same-named directory now raises a warning: the directory wins and the file is skipped
     - Fixed memory leaks when a dot-notation key overrides a scalar value
+    - Fixed memory leak on foreach-by-ref over compact block tables with PHP 7.0
     - Changed Yaconf::__debug_info() to report the stored value's address
    </notes>
   </release>
@@ -203,188 +279,188 @@
    <version>
     <release>1.1.2</release>
     <api>1.1.2</api>
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed ISSUE #67 (parsing bug with PHP8.1)
-   </notes> 
-  </release> 
+   </notes>
+  </release>
 
-  <release> 
-   <date>2021-12-16</date> 
-   <version> 
-    <release>1.1.1</release> 
-    <api>1.1.1</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+  <release>
+   <date>2021-12-16</date>
+   <version>
+    <release>1.1.1</release>
+    <api>1.1.1</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed build with PHP8.1
     - Change to using stub.php generated arginfos
-   </notes> 
-  </release> 
-  <release> 
-   <date>2020-03-12</date> 
-   <version> 
-    <release>1.1.0</release> 
-    <api>1.1.0</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2020-03-12</date>
+   <version>
+    <release>1.1.0</release>
+    <api>1.1.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Refactor Yaconf for performance
     - Around 40% time reduced according to benchmark
-   </notes> 
-  </release> 
-  <release> 
-   <date>2019-12-23</date> 
-   <version> 
-    <release>1.0.8</release> 
-    <api>1.0.8</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2019-12-23</date>
+   <version>
+    <release>1.0.8</release>
+    <api>1.0.8</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed PHP-7.4 build
     - Added Yaconf::__debug_info method for debug purpose
-   </notes> 
-  </release> 
-  <release> 
-   <date>2017-12-31</date> 
-   <version> 
-    <release>1.0.7</release> 
-    <api>1.0.7</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2017-12-31</date>
+   <version>
+    <release>1.0.7</release>
+    <api>1.0.7</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed PHP-7.2 build
     - Fixed HT flags
-   </notes> 
-  </release> 
-  <release> 
-   <date>2017-07-27</date> 
-   <version> 
-    <release>1.0.6</release> 
-    <api>1.0.6</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2017-07-27</date>
+   <version>
+    <release>1.0.6</release>
+    <api>1.0.6</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed PHP-7.2 Compatiblity
-   </notes> 
-  </release> 
-  <release> 
-   <date>2017-04-27</date> 
-   <version> 
-    <release>1.0.5</release> 
-    <api>1.0.5</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2017-04-27</date>
+   <version>
+    <release>1.0.5</release>
+    <api>1.0.5</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed issue #26 (Segmentation fault $php_fpm_BIN --daemonize $php_opts)
-   </notes> 
-  </release> 
-  <release> 
-   <date>2016-12-07</date> 
-   <version> 
-    <release>1.0.4</release> 
-    <api>1.0.4</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2016-12-07</date>
+   <version>
+    <release>1.0.4</release>
+    <api>1.0.4</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed issue #20 (Segfault during test suite with 7.1.0GA (TS))
-   </notes> 
-  </release> 
-  <release> 
-   <date>2016-11-30</date> 
-   <version> 
-    <release>1.0.3</release> 
-    <api>1.0.3</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2016-11-30</date>
+   <version>
+    <release>1.0.3</release>
+    <api>1.0.3</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed ISSUE #19 (Memory leak on foreach and reference)
-   </notes> 
-  </release> 
-  <release> 
-   <date>2016-05-26</date> 
-   <version> 
-    <release>1.0.2</release> 
-    <api>1.0.2</api> 
-   </version> 
-   <stability> 
-    <release>stable</release> 
-    <api>stable</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2016-05-26</date>
+   <version>
+    <release>1.0.2</release>
+    <api>1.0.2</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed ISSUE #14 (segfault with pop entry)
-   </notes> 
-  </release> 
-  <release> 
-   <date>2015-12-12</date> 
-   <version> 
-    <release>1.0.1</release> 
-    <api>1.0.1</api> 
-   </version> 
-   <stability> 
-    <release>beta</release> 
-    <api>beta</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2015-12-12</date>
+   <version>
+    <release>1.0.1</release>
+    <api>1.0.1</api>
+   </version>
+   <stability>
+    <release>beta</release>
+    <api>beta</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Fixed various bugs
-   </notes> 
-  </release> 
-  <release> 
-   <date>2015-10-27</date> 
-   <version> 
-    <release>1.0.0</release> 
-    <api>1.0.0</api> 
-   </version> 
-   <stability> 
-    <release>beta</release> 
-    <api>beta</api> 
-   </stability> 
-   <license uri="http://www.php.net/license">PHP License</license> 
+   </notes>
+  </release>
+  <release>
+   <date>2015-10-27</date>
+   <version>
+    <release>1.0.0</release>
+    <api>1.0.0</api>
+   </version>
+   <stability>
+    <release>beta</release>
+    <api>beta</api>
+   </stability>
+   <license uri="http://www.php.net/license">PHP License</license>
    <notes>
     - Release yaconf for PHP7
-   </notes> 
-  </release> 
- </changelog> 
-</package> 
+   </notes>
+  </release>
+ </changelog>
+</package>
 <!--
 vim:et:ts=1:sw=1
---> 
+-->
