@@ -78,9 +78,7 @@ echo fetch("sub.child.key");
 ?>
 --CLEAN--
 <?php
-include 'yaconf_server.inc';
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "030";
-yaconf_server_cleanup();
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "app.ini", "version=1\n");
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "a.ini", "v=1\n");
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "sub" . DIRECTORY_SEPARATOR . "child.ini", "key=\"c1\"\n");

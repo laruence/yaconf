@@ -55,9 +55,7 @@ echo fetch("app.version");                      // survives intact
 ?>
 --CLEAN--
 <?php
-include 'yaconf_server.inc';
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "031";
-yaconf_server_cleanup();
 @unlink($inidir . DIRECTORY_SEPARATOR . "emptydir" . DIRECTORY_SEPARATOR . "newfile.ini");
 @rmdir($inidir . DIRECTORY_SEPARATOR . "emptydir");
 ?>

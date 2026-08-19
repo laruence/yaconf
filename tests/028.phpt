@@ -62,9 +62,7 @@ rename($backup, $inidir);
 ?>
 --CLEAN--
 <?php
-include 'yaconf_server.inc';
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "028";
-yaconf_server_cleanup();
 $backup = $inidir . "_backup";
 if (is_dir($backup)) {
     rename($backup, $inidir);

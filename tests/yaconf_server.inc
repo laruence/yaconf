@@ -2,9 +2,11 @@
 
 define("YACONF_SERVER_HOSTNAME", (getenv('YACONF_SERVER_HOSTNAME') ?: "localhost"));
 
-/* lock handles must outlive yaconf_server_start(): closing one releases the
-   flock that tells the CLEAN sweep this docroot has a live owner */
-$GLOBALS['yaconf_test_locks'] = array();
+/* Tests may run in parallel, so each test server asks the OS for a free
+   port (bind :0 and read back the assigned one).  The port doubles as the
+   docroot suffix, so concurrent tests never share a path; if the port is
+   raced away, another one is picked.  The docroot is removed by the owning
+   process via register_shutdown_function(). */
 
 function yaconf_server_dir($port) {
 	/* the OS-assigned port doubles as the docroot suffix: unique per server */
@@ -31,11 +33,11 @@ function yaconf_rmdir($dir) {
 			}
 			$path = $dir . DIRECTORY_SEPARATOR . $f;
 			if (is_file($path)) {
-				unlink($path);
+				@unlink($path);
 			}
 		}
 		closedir($dp);
-		rmdir($dir);
+		@rmdir($dir);
 	}
 }
 
@@ -59,14 +61,6 @@ function yaconf_server_start($inidir, $check_delay = 0) {
 
 	$php_executable = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
 	$cmd_args = NULL;
-
-	/* held exclusively for the lifetime of this process: the CLEAN sweep
-	   only removes docroots whose lock it can take */
-	$lock = fopen($doc_root . DIRECTORY_SEPARATOR . ".lock", "w");
-	if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
-		die("Cannot lock test docroot '$doc_root'");
-	}
-	$GLOBALS['yaconf_test_locks'][] = $lock;
 
 	/* serves config values by key, stored-value addresses via __debug_info, and changed status */
 	file_put_contents($doc_root . DIRECTORY_SEPARATOR . "index.php", <<<'PHP'
@@ -136,24 +130,4 @@ PHP
 		$handle, $doc_root);
 
 	return $port;
-}
-
-function yaconf_server_cleanup() {
-	/* reclaim docroots left behind by crashed or aborted runs: a live FILE
-	   process holds an exclusive flock on <dir>/.lock, so only a directory
-	   whose lock we can take is stale.  No lock file means another process
-	   is mid-creation — leave it alone. */
-	foreach (glob(__DIR__ . DIRECTORY_SEPARATOR . "htdocs_*") as $dir) {
-		$lock_file = $dir . DIRECTORY_SEPARATOR . ".lock";
-		if (!is_file($lock_file)) {
-			continue;
-		}
-		$fp = @fopen($lock_file, "r");
-		if ($fp && flock($fp, LOCK_EX | LOCK_NB)) {
-			fclose($fp);
-			yaconf_rmdir($dir);
-		} elseif ($fp) {
-			fclose($fp);
-		}
-	}
 }
