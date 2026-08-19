@@ -31,7 +31,7 @@ symlink($inidir . DIRECTORY_SEPARATOR . "nonexistent.ini",
 
 $php = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
 /* TEST_PHP_ARGS carries run-tests.php options (e.g. --show-diff) on CI,
- * which the PHP CLI does not understand; skip it there, like yaconf_server.inc */
+ * which the PHP CLI does not understand; skip it there, like yaconf.inc */
 $cmd_args = NULL;
 if (!(bool)getenv('TRAVIS') && !(bool)getenv('GITHUB')) {
     $cmd_args = getenv('TEST_PHP_ARGS');

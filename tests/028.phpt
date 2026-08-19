@@ -13,7 +13,7 @@ if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supp
 // CASE A: check_delay=0 → every request re-checks mtime, picks up changes immediately
 // CASE B: config directory deleted → RINIT stat fails, old config still served, no crash
 
-include "yaconf_server.inc";
+include "yaconf.inc";
 
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "028";
 

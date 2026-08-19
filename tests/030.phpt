@@ -25,7 +25,7 @@ if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supp
 // in the block — proving the root table was detached and grown in isolation,
 // not rebuilt tree-wide (a whole-tree rebuild would move sub.child out too).
 
-include "yaconf_server.inc";
+include "yaconf.inc";
 
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "030";
 

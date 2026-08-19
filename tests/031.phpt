@@ -14,7 +14,7 @@ if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supp
 // container first — without the detach the engine would write the new bucket
 // into/behind the slot-only region and corrupt the block.
 
-include "yaconf_server.inc";
+include "yaconf.inc";
 
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "031";
 $subdir = $inidir . DIRECTORY_SEPARATOR . "emptydir";

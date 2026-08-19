@@ -13,7 +13,7 @@ if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supp
 //       check; addr= exposes the stored value's physical address — a reloaded
 //       file gets a new table, untouched files keep theirs
 
-include "yaconf_server.inc";
+include "yaconf.inc";
 
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "023";
 $subdir = $inidir . DIRECTORY_SEPARATOR . "sub";

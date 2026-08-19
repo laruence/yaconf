@@ -14,7 +14,7 @@ if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supp
 //   A) Directory mtime unchanged → no re-scan even if file content differs
 //   B) check_delay not elapsed → no check at all even if mtime changed
 
-include "yaconf_server.inc";
+include "yaconf.inc";
 
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "021";
 $inifile = $inidir . DIRECTORY_SEPARATOR . "rinit.ini";
