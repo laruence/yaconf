@@ -757,7 +757,6 @@ static void php_yaconf_check_directories(const char *root) /* {{{ */ {
 /* }}} */
 
 static void yaconf_ht_detach(HashTable *ht) /* {{{ */ {
-
 	/*  detach a block-resident HashTable's data region to the persistent heap
 	 *
 	 * Copy the compacted region into an independent pemalloc() allocation so the
@@ -1161,6 +1160,8 @@ PHP_MINIT_FUNCTION(yaconf)
 	INIT_CLASS_ENTRY(ce, "Yaconf", yaconf_methods);
 
 	yaconf_ce = zend_register_internal_class_ex(&ce, NULL);
+
+	REGISTER_STRINGL_CONSTANT("YACONF_VERSION", PHP_YACONF_VERSION, sizeof(PHP_YACONF_VERSION)-1, CONST_CS|CONST_PERSISTENT);
 
 	if ((dirname = YACONF_G(directory)) && strlen(dirname)
 #ifndef ZTS
