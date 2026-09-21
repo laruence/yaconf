@@ -51,3 +51,43 @@ jobs:
       - name: Test
         run: |
             TEST_PHP_JOBS=$(nproc) make test
+
+  yaml:
+    name: "Linux PHP 8.5 (nts, YAML)"
+    runs-on: ubuntu-latest
+    env:
+      GITHUB: "yes"
+      TEST_PHP_ARGS: "--show-diff"
+      REPORT_EXIT_STATUS: "yes"
+      NO_INTERACTION: "yes"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y re2c libyaml-dev
+      - name: Build with libyaml
+        run: |
+          phpize
+          ./configure --with-yaml
+          make
+      - name: Test YAML build
+        run: |
+          TEST_PHP_JOBS=$(nproc) make test
+      - name: Smoke test explicit libyaml prefix
+        run: |
+          prefix=/tmp/yaconf-libyaml-prefix
+          mkdir -p "$prefix/include" "$prefix/lib" /tmp/yaconf-prefix-build
+          ln -s "$(pkg-config --variable=includedir yaml-0.1)/yaml.h" "$prefix/include/yaml.h"
+          ln -s "$(pkg-config --variable=libdir yaml-0.1)/libyaml.so" "$prefix/lib/libyaml.so"
+          git archive --format=tar HEAD | tar -xf - -C /tmp/yaconf-prefix-build
+          cd /tmp/yaconf-prefix-build
+          phpize
+          ./configure --with-yaml="$prefix"
+          make
+          php -n -d "extension=$PWD/modules/yaconf.so" -r 'exit(YACONF_HAVE_YAML ? 0 : 1);'

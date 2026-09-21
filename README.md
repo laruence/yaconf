@@ -7,10 +7,11 @@ A PHP Persistent Configuration Container
 ## Requirement
 
 - PHP 7+
+- Optional YAML support: libyaml headers/library plus `--with-yaml` or `--with-yaml=/prefix`
 
 ## Introduction
 
-Yaconf is a configuration container. It parses INI files and stores the result in PHP at startup. Configurations live in persistent memory across the entire PHP lifecycle, which makes it very fast.
+Yaconf is a configuration container. It parses INI files by default, with optional YAML support backed directly by libyaml, and stores the result in PHP at startup. Configurations live in persistent memory across the entire PHP lifecycle, which makes it very fast.
 
 Yaconf uses an **immutable data + Copy-on-Write** design rather than shared memory (shmget/mmap). Parsed configs are stored in persistent `zend_array`s marked `IS_ARRAY_IMMUTABLE` — and all keys are interned as permanent strings. Because the hash tables are immutable, PHP-FPM workers forked from the master process share the **same physical memory pages** via the OS kernel's COW mechanism. As long as the configuration doesn't change, memory is allocated only once — no matter how many workers are running. When a config file is modified and Yaconf reloads it (in non-ZTS mode), the kernel copies only the changed pages on write, isolating the new config from the old.
 
@@ -20,22 +21,22 @@ Since 1.2.0, once parsing finishes Yaconf **compacts the whole config tree into 
 
 ### When to use Yaconf
 
-Most PHP applications have a pile of `.ini` or `.php` config files that get parsed on every request. Every request pays the I/O and parse cost, then throws the result away — only to do it again on the next request.
+Most PHP applications have configuration files that get parsed on every request. Every request pays the I/O and parse cost, then throws the result away — only to do it again on the next request.
 
 Yaconf flips this: **parse once at startup, serve from memory forever.** The parsed config lives in persistent `zend_array`s with immutable hash tables. `Yaconf::get()` is a pure hash lookup — no file I/O, no parsing, no memory allocation per request.
 
-- **Best for**: Read-heavy config that changes infrequently — database credentials, feature flags, routing tables, service discovery maps. Anything you `include` or `parse_ini_file()` on every request today.
-- **Not ideal for**: Config that changes per-request or per-user. Dynamic configuration that needs runtime computation (Yaconf stores static values — PHP constants and env vars are resolved once at parse time, not on access).
-- **Scale**: The memory overhead is minimal — a few KB per config file, shared across all workers via COW until the config changes. There's no practical limit on the number of `.ini` files beyond what your `yaconf.directory` contains.
+- **Best for**: Read-heavy config that changes infrequently — database credentials, feature flags, routing tables, service discovery maps. Anything you parse on every request today.
+- **Not ideal for**: Config that changes per-request or per-user. Dynamic configuration that needs runtime computation (Yaconf stores static values — INI constants and environment variables are resolved once during parsing, not on access).
+- **Scale**: The memory overhead is minimal — a few KB per configuration file, shared across all workers via COW until the config changes. There's no practical limit on the number of supported configuration files beneath `yaconf.directory`.
 
 Yaconf is for static configuration. For runtime caching — database query results, computed data, HTML fragments, ephemeral tokens — use [Yac](https://github.com/laruence/yac), which shares the same "local first, zero dependency" design philosophy.
 
 ## What's new in 1.2.0
 
-- **Sub-directory support**: INI files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name — `sub/x.ini` is addressed as `"sub.x"`. Sub-directories are tracked for hot reload too.
+- **Sub-directory support**: supported configuration files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name — `sub/x.ini` is addressed as `"sub.x"`. Sub-directories are tracked for hot reload too.
 - **Compact block storage**: all parsed configurations are consolidated into a single contiguous block after startup (see the [Introduction](#introduction)) — lower memory overhead, better cache locality, and fewer pages touched when workers COW.
 - **PHP PIE support**: installable via [PIE](https://github.com/php/pie), the PHP Installer for Extensions.
-- A name conflict between an INI file and a same-named directory now raises a warning; the directory wins and the file is skipped.
+- A name conflict between a supported configuration file and a same-named directory raises a warning; the directory wins and the file is skipped.
 - Fixed memory leaks when a dot-notation key overrides a scalar value, and on foreach-by-ref over compact block tables with PHP 7.0.
 - `Yaconf::__debug_info()` now reports the stored value's address.
 
@@ -44,8 +45,8 @@ Yaconf is for static configuration. For runtime caching — database query resul
 - Fast, light
 - Zero-copy when accessing configurations
 - Configs consolidated into one compacted block — lower memory, better cache locality (since 1.2.0)
-- Supports sections and section inheritance (up to 16 levels deep)
-- Supports sub-directories of arbitrary depth (up to 16 levels) — `sub/x.ini` is addressed as `"sub.x"` (since 1.2.0)
+- INI sections and section inheritance (up to 16 levels deep)
+- Sub-directories of arbitrary depth (up to 16 levels) — `sub/x.ini` is addressed as `"sub.x"` (since 1.2.0)
 - Configurations reload automatically after changes (non-ZTS only), including sub-directories
 - C API exported for use by other PHP extensions
 
@@ -72,19 +73,25 @@ $ pie install laruence/yaconf
 ```bash
 $ /path/to/phpize
 $ ./configure --with-php-config=/path/to/php-config
+# Optional YAML support, linked directly against the system libyaml:
+$ ./configure --with-php-config=/path/to/php-config --with-yaml
+# Or use a libyaml installation prefix:
+$ ./configure --with-php-config=/path/to/php-config --with-yaml=/path/to/libyaml-prefix
 $ make && make install
 ```
+
+YAML support requires matching libyaml headers and libraries. On Windows, `--with-yaml` is enabled only when matching libyaml development inputs are available; otherwise the build warns and remains INI-only.
 
 ## Runtime Configuration
 
 | INI Setting | Default | Description |
 |---|---|---|
-| `yaconf.directory` | `""` | Path to the directory where all INI configuration files are placed. Sub-directories are loaded recursively (up to 16 levels deep). |
+| `yaconf.directory` | `""` | Path to the directory where supported configuration files are placed. `.ini` is always supported; `.yaml` and `.yml` require a build configured with `--with-yaml`. Sub-directories are loaded recursively (up to 16 levels deep). |
 | `yaconf.check_delay` | `300` | Interval in seconds at which Yaconf checks for config file changes (by comparing directory mtimes — first the configured directory, then each tracked sub-directory). Set to `0` to check on every request. **Only available in non-ZTS builds.** In ZTS builds, configurations are still loaded at startup, but automatic reloading is disabled — restart PHP to pick up changes. |
 
 ## Constants
 
-Yaconf does not register any PHP constants.
+Yaconf always registers `YACONF_HAVE_YAML`, a boolean indicating whether YAML support was compiled into this build. Builds without `--with-yaml` set it to `false` and ignore `.yaml` and `.yml` files.
 
 ## APIs
 
@@ -135,9 +142,15 @@ Assuming we place all configuration files in `/tmp/yaconf/`, add this to `php.in
 yaconf.directory=/tmp/yaconf
 ```
 
-### INI Files
+### Supported Configuration Files
 
-Yaconf only loads files with the `.ini` extension from the configured directory — and, recursively, from its sub-directories (up to 16 levels deep). A sub-directory acts as a namespace: its name becomes a key level, and the files (and further sub-directories) inside it nest below that key.
+Yaconf always loads `.ini` files. Builds configured with `--with-yaml` also load `.yaml` and `.yml`. Files are loaded recursively from sub-directories (up to 16 levels deep). A sub-directory acts as a namespace: its name becomes a key level, and files (and further sub-directories) inside it nest below that key.
+
+YAML files must have a mapping root. YAML mappings become PHP arrays; YAML lists retain numeric keys, so `app.items.0` addresses the first item. YAML scalar types (`string`, `int`, finite `float`, `bool`, `null`) are preserved. YAML uses a static, native-parsed subset: exactly one document, no custom/timestamp/binary tags, aliases, shared nodes, complex keys, objects, resources, or references.
+
+A supported file is keyed by its basename: `app.ini`, `app.yaml`, and `app.yml` all map to `app`. Same-directory files with the same basename across enabled formats are a configuration error: Yaconf emits one warning and loads none of those files. This rule is independent of directory order. A directory with that basename takes precedence over every supported file.
+
+### INI Files
 
 Assuming there are two files in `/tmp/yaconf`:
 
@@ -280,11 +293,11 @@ array(2) {
 */
 ```
 
-A `.ini` file and a directory with the same name would claim the same key; the directory wins — Yaconf emits a warning and skips the file.
+A directory and any supported file with the same basename would claim the same key; the directory wins — Yaconf emits one warning, skips every matching supported file, and retains the directory namespace.
 
 ### phpinfo() Output
 
-When `yaconf.check_delay` is non-zero, Yaconf adds a block to `phpinfo()` showing the directory being watched, the configured check delay, a list of all currently loaded `.ini` files (with their path relative to `yaconf.directory`) and their last modification time, plus a list of all tracked sub-directories.
+When `yaconf.check_delay` is non-zero, Yaconf adds a block to `phpinfo()` showing the directory being watched, the configured check delay, a list of all currently loaded supported configuration files (with their path relative to `yaconf.directory`) and their last modification time, plus a list of all tracked sub-directories.
 
 ## License
 

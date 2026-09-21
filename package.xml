@@ -3,7 +3,7 @@
  <name>yaconf</name>
  <channel>pecl.php.net</channel>
  <summary>PHP Persistent Configurations Container</summary>
- <description>Yaconf is a configurations container, it parses ini files, and store the result in PHP when PHP is started</description>
+ <description>Yaconf is a persistent configurations container. It parses INI files by default and optionally YAML files with libyaml, then stores the result when PHP starts.</description>
  <lead>
   <name>Xinchen Hui</name>
   <user>laruence</user>
@@ -30,6 +30,8 @@
   - Fixed memory leaks when a dot-notation key overrides a scalar value
   - Fixed memory leak on foreach-by-ref over compact block tables with PHP 7.0
   - Changed Yaconf::__debug_info() to report the stored value's address
+  - Added optional libyaml-backed YAML configuration file support (`.yaml` and `.yml`)
+  - Added deterministic cross-format file conflict handling
  </notes>
  <contents>
   <dir name="/">
@@ -39,6 +41,8 @@
    <file name="yaconf_legacy_arginfo.h" role="src" />
    <file name="LICENSE" role="doc" />
    <file name="CREDITS" role="doc" />
+   <file name="README.md" role="doc" />
+   <file name="composer.json" role="src" />
    <file name="yaconf.c" role="src" />
    <file name="config.w32" role="src" />
    <dir name="tests">
@@ -77,7 +81,14 @@
     <file name="030.phpt" role="test" />
     <file name="031.phpt" role="test" />
     <file name="032.phpt" role="test" />
-    <file name="yaconf_server.inc" role="test" />
+    <file name="033.phpt" role="test" />
+    <file name="034.phpt" role="test" />
+    <file name="035.phpt" role="test" />
+    <file name="036.phpt" role="test" />
+    <file name="038.phpt" role="test" />
+    <file name="039.phpt" role="test" />
+    <file name="041.phpt" role="test" />
+    <file name="yaconf.inc" role="test" />
     <dir name="inis">
      <dir name="002">
       <file name="basic.ini" role="test" />
@@ -214,6 +225,53 @@
      <dir name="032">
       <file name="sparse.ini" role="test" />
      </dir>
+     <dir name="033">
+      <file name="app.yaml" role="test" />
+      <file name="short.yml" role="test" />
+     </dir>
+     <dir name="034">
+      <file name="app.yaml" role="test" />
+      <file name="typed.yml" role="test" />
+     </dir>
+     <dir name="035">
+      <file name="service.ini" role="test" />
+      <file name="service.yaml" role="test" />
+      <file name="service.yml" role="test" />
+     </dir>
+     <dir name="036">
+      <file name="foo.ini" role="test" />
+      <file name="foo.yaml" role="test" />
+      <file name="foo.yml" role="test" />
+      <dir name="foo">
+       <file name="child.ini" role="test" />
+      </dir>
+      <dir name="sub">
+       <file name="app.yaml" role="test" />
+       <file name="short.yml" role="test" />
+      </dir>
+     </dir>
+     <dir name="038">
+      <file name="invalid.yaml" role="test" />
+      <file name="list.yaml" role="test" />
+      <file name="scalar.yml" role="test" />
+     </dir>
+     <dir name="039">
+      <file name="alias.yaml" role="test" />
+      <file name="binary.yml" role="test" />
+      <file name="complex-key.yaml" role="test" />
+      <file name="custom.yaml" role="test" />
+      <file name="infinite.yml" role="test" />
+      <file name="multidoc.yaml" role="test" />
+      <file name="overflow.yml" role="test" />
+      <file name="timestamp.yml" role="test" />
+     </dir>
+     <dir name="041">
+      <file name="app.yaml" role="test" />
+      <file name="sub.yaml" role="test" />
+      <dir name="nested">
+       <file name="child.yaml" role="test" />
+      </dir>
+     </dir>
     </dir>
    </dir>
   </dir>
@@ -229,7 +287,9 @@
   </required>
  </dependencies>
  <providesextension>yaconf</providesextension>
- <extsrcrelease />
+ <extsrcrelease>
+  <configureoption name="with-yaml" prompt="Enable YAML configuration support using libyaml?" default="no"/>
+ </extsrcrelease>
  <changelog>
   <release>
    <date>2026-08-18</date>
