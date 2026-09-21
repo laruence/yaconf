@@ -1,3 +1,4 @@
 value:
   kind: yaml
 status: scalar
+enabled: true

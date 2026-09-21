@@ -1,5 +1,5 @@
 --TEST--
-Yaconf: YAML reload replaces scalars and arrays while invalid content retains old values
+Yaconf: YAML reload retains stale values and reports scalar debug state
 --SKIPIF--
 <?php
 if (!extension_loaded("yaconf")) print "skip";
@@ -25,11 +25,19 @@ function changed_041($key) {
     $ctx = stream_context_create(["http" => ["timeout" => 3]]);
     return trim(file_get_contents($url . "?changed=" . urlencode($key), false, $ctx));
 }
+function address_041($key) {
+    global $url;
+    $ctx = stream_context_create(["http" => ["timeout" => 3]]);
+    return trim(file_get_contents($url . "?addr=" . urlencode($key), false, $ctx));
+}
 
 echo fetch_041("app.value.kind");
 echo fetch_041("app.status");
 echo fetch_041("nested.child.value");
+var_dump(address_041("app.value") !== "(scalar)");
 var_dump(changed_041("app.value") === "0");
+var_dump(address_041("app.enabled") === "(scalar)");
+var_dump(changed_041("app.enabled") === "1");
 
 sleep(1);
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "nested" . DIRECTORY_SEPARATOR . "child.yaml", "value: reloaded\n");
@@ -74,18 +82,31 @@ touch($inidir);
 
 echo fetch_041("app.value");
 var_dump(changed_041("app.value") === "1");
+
+sleep(1);
+unlink($inidir . DIRECTORY_SEPARATOR . "nested" . DIRECTORY_SEPARATOR . "child.yaml");
+rmdir($inidir . DIRECTORY_SEPARATOR . "nested");
+clearstatcache();
+touch($inidir);
+
+echo fetch_041("nested.child.value");
+var_dump(changed_041("nested.child.value") === "1");
 ?>
 --CLEAN--
 <?php
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "041";
 @unlink($inidir . DIRECTORY_SEPARATOR . "app.yml");
-file_put_contents($inidir . DIRECTORY_SEPARATOR . "app.yaml", "value:\n  kind: yaml\nstatus: scalar\n");
+file_put_contents($inidir . DIRECTORY_SEPARATOR . "app.yaml", "value:\n  kind: yaml\nstatus: scalar\nenabled: true\n");
+@mkdir($inidir . DIRECTORY_SEPARATOR . "nested");
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "nested" . DIRECTORY_SEPARATOR . "child.yaml", "value: initial\n");
 ?>
 --EXPECTF--
 string(4) "yaml"
 string(6) "scalar"
 string(7) "initial"
+bool(true)
+bool(true)
+bool(true)
 bool(true)
 string(8) "reloaded"
 bool(true)
@@ -102,4 +123,6 @@ bool(true)
 string(6) "scalar"
 bool(true)
 string(6) "scalar"
+bool(true)
+string(8) "reloaded"
 bool(true)
