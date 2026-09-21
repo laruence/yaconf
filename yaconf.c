@@ -753,7 +753,7 @@ static int php_yaconf_yaml_node(yaml_document_t *document, int index, HashTable 
 		for (pair = node->data.mapping.pairs.start; pair < node->data.mapping.pairs.top; pair++) {
 			yaml_node_t *key = yaml_document_get_node(document, pair->key);
 			zval value;
-			if (!php_yaconf_yaml_mark_node(seen, pair->key) || !key || key->type != YAML_SCALAR_NODE ||
+			if (!php_yaconf_yaml_mark_node(seen, pair->key) || !key || key->type != YAML_SCALAR_NODE || !key->tag ||
 					(strcmp((const char *)key->tag, YAML_STR_TAG) != 0 && strcmp((const char *)key->tag, YAML_INT_TAG) != 0) ||
 					!php_yaconf_yaml_node(document, pair->value, seen, &value)) {
 				zval_ptr_dtor(result);

@@ -1,0 +1,12 @@
+name: yaml
+count: 7
+ratio: 1.5
+enabled: true
+disabled: false
+nothing: null
+nested:
+  host: localhost
+  items:
+    - zero
+    - 2
+    - false

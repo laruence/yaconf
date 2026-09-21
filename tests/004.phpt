@@ -16,7 +16,7 @@ yaconf support => enabled
 version => %s
 yaconf config last check time => %s
 %A
-parsed filename => mtime
+parsed supported config file => mtime
 a.ini => %s
 
 b.ini => %s

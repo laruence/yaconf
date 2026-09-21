@@ -53,7 +53,7 @@ $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "020";
 @rmdir($inidir);
 ?>
 --EXPECTF--
-%a yaconf: name conflict between config file 'foo.ini' and a directory with the same name in Unknown on line 0
+%a yaconf: name conflict between supported config files and directory 'foo'; directory wins in Unknown on line 0
 bool(true)
 string(1) "2"
 bool(false)
