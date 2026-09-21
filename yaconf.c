@@ -910,10 +910,26 @@ PHP_YACONF_API int php_yaconf_has(zend_string *name) /* {{{ */ {
 /* }}} */
 
 typedef struct _yaconf_scan_group {
-	uint32_t formats;
+	zend_bool has_file;
 	zend_bool has_directory;
 	zend_bool warned;
 } yaconf_scan_group;
+
+static void php_yaconf_drop_other_file_nodes(const char *relpath, size_t relpath_len, const yaconf_config_format *format) /* {{{ */ {
+	uint32_t i;
+	size_t basename_len = relpath_len - format->extension_len;
+
+	for (i = 0; i < YACONF_CONFIG_FORMAT_COUNT; i++) {
+		char file_relpath[MAXPATHLEN + 8];
+		size_t file_relpath_len;
+
+		if (&yaconf_config_formats[i] == format) {
+			continue;
+		}
+		file_relpath_len = snprintf(file_relpath, sizeof(file_relpath), "%.*s%s", (int)basename_len, relpath, yaconf_config_formats[i].extension);
+		zend_hash_str_del(parsed_config_files, file_relpath, file_relpath_len);
+	}
+} /* }}} */
 
 static void php_yaconf_handle_file(const char *fullpath, const char *relpath, size_t relpath_len, const char *name, size_t key_len, const yaconf_config_format *format, HashTable *container, time_t mtime) /* {{{ */ {
 	yaconf_filenode *node;
@@ -969,8 +985,8 @@ static void php_yaconf_handle_directory(const char *fullpath, const char *relpat
 } /* }}} */
 
 static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, size_t relpath_len, HashTable *container, int is_initial, int depth) /* {{{ */ {
-	/* Discover all supported candidates before loading any of them. This makes
-	 * same-basename conflicts independent of php_scandir() ordering. */
+	/* php_scandir() uses php_alphasort here, so the first supported file for a
+	 * basename deterministically wins. A later directory always takes over. */
 	int ndir;
 	struct dirent **namelist;
 	HashTable groups;
@@ -989,34 +1005,6 @@ static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, s
 
 	for (i = 0; i < (uint32_t)ndir; i++) {
 		char *name = namelist[i]->d_name;
-		size_t name_len = strlen(name), key_len = 0;
-		char fullpath[MAXPATHLEN];
-		zend_stat_t sb = {0};
-		const yaconf_config_format *format = NULL;
-		yaconf_scan_group *group;
-
-		if (name[0] == '.' && (name_len == 1 || (name_len == 2 && name[1] == '.'))) continue;
-		snprintf(fullpath, sizeof(fullpath), "%s%c%s", dirpath, DEFAULT_SLASH, name);
-		if (VCWD_STAT(fullpath, &sb) != 0) continue;
-		if (S_ISDIR(sb.st_mode)) {
-			key_len = name_len;
-		} else if (S_ISREG(sb.st_mode) && (format = php_yaconf_find_format(name, name_len))) {
-			key_len = name_len - format->extension_len;
-		} else {
-			continue;
-		}
-		group = zend_hash_str_find_ptr(&groups, name, key_len);
-		if (!group) {
-			group = emalloc(sizeof(*group));
-			memset(group, 0, sizeof(*group));
-			zend_hash_str_add_ptr(&groups, name, key_len, group);
-		}
-		if (S_ISDIR(sb.st_mode)) group->has_directory = 1;
-		else group->formats++;
-	}
-
-	for (i = 0; i < (uint32_t)ndir; i++) {
-		char *name = namelist[i]->d_name;
 		size_t name_len = strlen(name), key_len;
 		char fullpath[MAXPATHLEN], sub_relpath[MAXPATHLEN];
 		size_t sub_relpath_len;
@@ -1031,21 +1019,35 @@ static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, s
 		else if (S_ISREG(sb.st_mode) && (format = php_yaconf_find_format(name, name_len))) key_len = name_len - format->extension_len;
 		else goto next;
 		group = zend_hash_str_find_ptr(&groups, name, key_len);
-		if ((!S_ISDIR(sb.st_mode) && group->has_directory) || (!group->has_directory && group->formats > 1)) {
-			if (!group->warned) {
-				php_error(E_WARNING, group->has_directory
-						? "yaconf: name conflict between supported config files and directory '%.*s'; directory wins"
-						: "yaconf: name conflict between supported config files named '%.*s'; all files skipped",
-						(int)key_len, name);
-				group->warned = 1;
-			}
-			goto next;
+		if (!group) {
+			group = emalloc(sizeof(*group));
+			memset(group, 0, sizeof(*group));
+			zend_hash_str_add_ptr(&groups, name, key_len, group);
 		}
 		if (relpath_len) sub_relpath_len = snprintf(sub_relpath, sizeof(sub_relpath), "%s/%s", relpath, name);
 		else sub_relpath_len = snprintf(sub_relpath, sizeof(sub_relpath), "%s", name);
 		if (S_ISDIR(sb.st_mode)) {
+			if (group->has_file && !group->warned) {
+				php_error(E_WARNING, "yaconf: name conflict between supported config files and directory '%.*s'; directory wins", (int)key_len, name);
+				group->warned = 1;
+			}
+			group->has_directory = 1;
 			php_yaconf_handle_directory(fullpath, sub_relpath, sub_relpath_len, name, name_len, container, sb.st_mtime, is_initial, depth);
+		} else if (group->has_directory) {
+			if (!group->warned) {
+				php_error(E_WARNING, "yaconf: name conflict between supported config files and directory '%.*s'; directory wins", (int)key_len, name);
+				group->warned = 1;
+			}
+		} else if (group->has_file) {
+			if (!group->warned) {
+				php_error(E_WARNING, "yaconf: name conflict between supported config files named '%.*s'; first file loaded, later files skipped", (int)key_len, name);
+				group->warned = 1;
+			}
 		} else {
+			group->has_file = 1;
+			/* The current scan's winner supersedes every old-format tracker before
+			 * parsing, including when parsing fails and the last valid value stays. */
+			php_yaconf_drop_other_file_nodes(sub_relpath, sub_relpath_len, format);
 			php_yaconf_handle_file(fullpath, sub_relpath, sub_relpath_len, name, key_len, format, container, sb.st_mtime);
 		}
 next:

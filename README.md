@@ -148,7 +148,7 @@ Yaconf always loads `.ini` files. Builds configured with `--with-yaml` also load
 
 YAML files must have a mapping root. YAML mappings become PHP arrays; YAML lists retain numeric keys, so `app.items.0` addresses the first item. YAML scalar types (`string`, `int`, finite `float`, `bool`, `null`) are preserved. YAML uses a static, native-parsed subset: exactly one document, no custom/timestamp/binary tags, aliases, shared nodes, complex keys, objects, resources, or references.
 
-A supported file is keyed by its basename: `app.ini`, `app.yaml`, and `app.yml` all map to `app`. Same-directory files with the same basename across enabled formats are a configuration error: Yaconf emits one warning and loads none of those files. This rule is independent of directory order. A directory with that basename takes precedence over every supported file.
+A supported file is keyed by its basename: `app.ini`, `app.yaml`, and `app.yml` all map to `app`. When same-directory enabled formats share a basename, Yaconf loads the first file found by its stable alphabetical scan and emits one warning while skipping later files; it does not hard-code an extension priority. A directory with that basename takes precedence over every supported file.
 
 ### INI Files
 

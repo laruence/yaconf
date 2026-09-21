@@ -66,8 +66,17 @@ echo fetch_041("app.value");
 echo fetch_041("app.status.nested");
 
 sleep(1);
+file_put_contents($inidir . DIRECTORY_SEPARATOR . "app.ini", "value=ini\n");
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "app.yaml", "value: scalar\nstatus:\n  nested: true\n");
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "app.yml", "value: competing\n");
+clearstatcache();
+touch($inidir);
+
+echo fetch_041("app.value");
+var_dump(changed_041("app.value") === "1");
+
+sleep(1);
+unlink($inidir . DIRECTORY_SEPARATOR . "app.ini");
 clearstatcache();
 touch($inidir);
 
@@ -95,6 +104,7 @@ var_dump(changed_041("nested.child.value") === "1");
 --CLEAN--
 <?php
 $inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "041";
+@unlink($inidir . DIRECTORY_SEPARATOR . "app.ini");
 @unlink($inidir . DIRECTORY_SEPARATOR . "app.yml");
 file_put_contents($inidir . DIRECTORY_SEPARATOR . "app.yaml", "value:\n  kind: yaml\nstatus: scalar\nenabled: true\n");
 @mkdir($inidir . DIRECTORY_SEPARATOR . "nested");
@@ -119,7 +129,11 @@ bool(true)
 string(6) "scalar"
 bool(true)
 <br />
-<b>Warning</b>:  yaconf: name conflict between supported config files named 'app'; all files skipped in <b>Unknown</b> on line <b>0</b><br />
+<b>Warning</b>:  yaconf: name conflict between supported config files named 'app'; first file loaded, later files skipped in <b>Unknown</b> on line <b>0</b><br />
+string(3) "ini"
+bool(true)
+<br />
+<b>Warning</b>:  yaconf: name conflict between supported config files named 'app'; first file loaded, later files skipped in <b>Unknown</b> on line <b>0</b><br />
 string(6) "scalar"
 bool(true)
 string(6) "scalar"

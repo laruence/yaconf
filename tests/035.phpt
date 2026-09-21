@@ -1,5 +1,5 @@
 --TEST--
-Yaconf: .ini, .yaml, and .yml with the same basename are skipped
+Yaconf: the first .ini, .yaml, or .yml basename match is loaded
 --SKIPIF--
 <?php
 if (!extension_loaded("yaconf")) print "skip";
@@ -9,8 +9,8 @@ if (!defined("YACONF_HAVE_YAML") || !YACONF_HAVE_YAML) die("skip yaconf built wi
 yaconf.directory={PWD}/inis/035
 --FILE--
 <?php
-var_dump(Yaconf::has("service"));
+var_dump(Yaconf::get("service.source"));
 ?>
 --EXPECTF--
-Warning: yaconf: name conflict between supported config files named 'service'; all files skipped in Unknown on line 0
-bool(false)
+Warning: yaconf: name conflict between supported config files named 'service'; first file loaded, later files skipped in Unknown on line 0
+string(3) "ini"
