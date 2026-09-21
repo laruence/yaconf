@@ -55,6 +55,29 @@ ZEND_BEGIN_MODULE_GLOBALS(yaconf)
 #endif
 	ZEND_END_MODULE_GLOBALS(yaconf)
 
+typedef struct _yaconf_filenode {
+	zend_string *filename;   /* relative path from yaconf.directory */
+	time_t mtime;
+} yaconf_filenode;
+
+typedef struct _yaconf_dirnode {
+	zend_string *dirname;    /* relative path from yaconf.directory */
+	time_t mtime;
+	HashTable *container;    /* borrowed pointer into the config_containers tree */
+} yaconf_dirnode;
+
+typedef struct _yaconf_config_format {
+	const char *extension;
+	size_t extension_len;
+	int (*parse)(const char *filename, zval *result);
+} yaconf_config_format;
+
+typedef struct _yaconf_scan_group {
+	zend_bool has_file;
+	zend_bool has_directory;
+	zend_bool warned;
+} yaconf_scan_group;
+
 PHP_MINIT_FUNCTION(yaconf);
 PHP_MSHUTDOWN_FUNCTION(yaconf);
 #ifndef ZTS
