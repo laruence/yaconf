@@ -2,9 +2,21 @@
 // vim:ft=javascript
 
 ARG_ENABLE("yaconf", "enable yaconf support", "no");
+ARG_WITH("yaml", "enable YAML configuration support using libyaml", "no");
 
 if (PHP_YACONF != "no") {
 	EXTENSION("yaconf", "yaconf.c");
 	PHP_INSTALL_HEADERS("ext/yaconf", "php_yaconf.h")
+
+	if (PHP_YAML != "no") {
+		var yaml_include = PHP_YAML == "yes" ? null : PHP_YAML + "\\include";
+		var yaml_lib = PHP_YAML == "yes" ? null : PHP_YAML + "\\lib";
+		if (CHECK_HEADER_ADD_INCLUDE("yaml.h", "CFLAGS_YACONF", yaml_include) &&
+			CHECK_LIB("yaml.lib;libyaml.lib", "yaconf", yaml_lib)) {
+			AC_DEFINE("YACONF_ENABLE_YAML", 1, "enable YAML configuration support");
+		} else {
+			WARNING("yaconf YAML configuration support requested, but libyaml headers or libraries were not found; YAML support disabled");
+		}
+	}
 }
 

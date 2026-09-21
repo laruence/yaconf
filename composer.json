@@ -23,6 +23,11 @@
         "name": "enable-yaconf",
         "description": "whether to enable yaconf support",
         "needs-value": false
+      },
+      {
+        "name": "with-yaml",
+        "description": "enable YAML configuration support using libyaml, optionally from a prefix",
+        "needs-value": true
       }
     ]
   }

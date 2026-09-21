@@ -24,6 +24,12 @@
 #include "ext/standard/info.h"
 #include "php_yaconf.h"
 
+#ifdef YACONF_ENABLE_YAML
+# include <errno.h>
+# include <math.h>
+# include <yaml.h>
+#endif
+
 #if PHP_MAJOR_VERSION > 7
 #include "yaconf_arginfo.h"
 #else
@@ -38,9 +44,9 @@
 ZEND_DECLARE_MODULE_GLOBALS(yaconf);
 
 /* true globals */
-static HashTable *ini_containers;
-static HashTable *parsed_ini_files;
-static HashTable *parsed_ini_dirs;
+static HashTable *config_containers;
+static HashTable *parsed_config_files;
+static HashTable *parsed_config_dirs;
 static zval active_ini_file_section;
 
 /* 0 = temporary (emalloc) during MINIT parse, 1 = persistent (pemalloc) for RINIT reload */
@@ -51,7 +57,7 @@ static char    *yaconf_block = (void *)0x0;
 static size_t   yaconf_block_size = 0;
 
 static zend_always_inline int yaconf_ptr_in_block(const void *ptr) /* {{{ */ {
-	return (const char*)ptr < yaconf_block + yaconf_block_size
+	return yaconf_block && (const char*)ptr < yaconf_block + yaconf_block_size
 		&& (const char*)ptr >= yaconf_block;
 } /* }}} */
 
@@ -62,17 +68,17 @@ static zend_always_inline int yaconf_data_in_block(HashTable *ht) /* {{{ */ {
 } /* }}} */
 
 static zend_always_inline int yaconf_value_in_block(const zval *zv) /* {{{ */ {
-	/* scalar values sit inside the bucket array, strings and sub-arrays are
-	   separate block allocations.  A container whose data region has been
-	   detached to the heap still holds block-resident values, so the
-	   decision must be based on the value's pointer, not the slot's */
-	ZEND_ASSERT(Z_TYPE_P(zv) == IS_STRING || Z_TYPE_P(zv) == IS_ARRAY);
+	/* Scalars live in their bucket and carry no independently allocated data.
+	 * Only strings and arrays can point into the compacted block. */
+	if (Z_TYPE_P(zv) != IS_STRING && Z_TYPE_P(zv) != IS_ARRAY) {
+		return 1;
+	}
 	return yaconf_ptr_in_block(Z_PTR_P(zv));
 } /* }}} */
 
 zend_class_entry *yaconf_ce;
 
-static void php_yaconf_zval_persistent(zval *zv, zval *rv);
+static int php_yaconf_zval_persistent(zval *zv, zval *rv);
 static void php_yaconf_zval_dtor(zval *pzval);
 static void yaconf_ht_detach(HashTable *ht);
 
@@ -84,7 +90,7 @@ typedef struct _yaconf_filenode {
 typedef struct _yaconf_dirnode {
 	zend_string *dirname;    /* relative path from yaconf.directory */
 	time_t mtime;
-	HashTable *container;    /* borrowed pointer into the ini_containers tree */
+	HashTable *container;    /* borrowed pointer into the config_containers tree */
 } yaconf_dirnode;
 
 /* guards against symlink loops recursing the scan until the C stack overflows */
@@ -101,7 +107,7 @@ typedef struct _yaconf_dirnode {
  *            allocate one block → copy strings (dedup by content) →
  *            copy HashTables (remap pointers) → free old tree
  *
- * After compaction, ini_containers and dirnode containers point into the
+ * After compaction, config_containers and dirnode containers point into the
  * single block.  MSHUTDOWN just frees the block.  Hot reload (RINIT) rebuilds
  * the whole tree from scratch and re-compacts.
  */
@@ -292,27 +298,43 @@ static void php_yaconf_hash_copy(HashTable *target, HashTable *source) /* {{{ */
 	} ZEND_HASH_FOREACH_END();
 } /* }}} */
 
-static void php_yaconf_zval_persistent(zval *zv, zval *rv) /* {{{ */ {
+static int php_yaconf_zval_persistent(zval *zv, zval *rv) /* {{{ */ {
+	zend_string *key;
+	zend_long idx;
+	zval *element;
+
 	switch (Z_TYPE_P(zv)) {
 #if PHP_VERSION_ID < 70300
 		case IS_CONSTANT:
 #endif
 		case IS_STRING:
 			ZVAL_INTERNED_STR(rv, php_yaconf_str_persistent(Z_STRVAL_P(zv), Z_STRLEN_P(zv)));
-			break;
+			return 1;
 		case IS_ARRAY:
-			{
-				php_yaconf_hash_init(rv, zend_hash_num_elements(Z_ARRVAL_P(zv)));
-				php_yaconf_hash_copy(Z_ARRVAL_P(rv), Z_ARRVAL_P(zv));
-			}
-			break;
-		case IS_RESOURCE:
-		case IS_OBJECT:
-		case _IS_BOOL:
+			php_yaconf_hash_init(rv, zend_hash_num_elements(Z_ARRVAL_P(zv)));
+			ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(zv), idx, key, element) {
+				zval copy;
+				if (!php_yaconf_zval_persistent(element, &copy)) {
+					php_yaconf_hash_destroy(Z_ARRVAL_P(rv));
+					ZVAL_UNDEF(rv);
+					return 0;
+				}
+				if (key) {
+					zend_hash_update(Z_ARRVAL_P(rv), php_yaconf_str_persistent(ZSTR_VAL(key), ZSTR_LEN(key)), &copy);
+				} else {
+					zend_hash_index_update(Z_ARRVAL_P(rv), idx, &copy);
+				}
+			} ZEND_HASH_FOREACH_END();
+			return 1;
 		case IS_LONG:
+		case IS_DOUBLE:
+		case IS_TRUE:
+		case IS_FALSE:
 		case IS_NULL:
-			ZEND_ASSERT(0);
-			break;
+			ZVAL_COPY_VALUE(rv, zv);
+			return 1;
+		default:
+			return 0;
 	}
 } /* }}} */
 
@@ -550,12 +572,315 @@ static int php_yaconf_parse_ini_file(const char *filename, zval *result) /* {{{ 
 }
 /* }}} */
 
+typedef enum {
+	YACONF_FORMAT_INI,
+#ifdef YACONF_ENABLE_YAML
+	YACONF_FORMAT_YAML,
+#endif
+} yaconf_format_type;
+
+typedef struct _yaconf_config_format {
+	const char *extension;
+	size_t extension_len;
+	yaconf_format_type type;
+} yaconf_config_format;
+
+static const yaconf_config_format yaconf_config_formats[] = {
+	{ ".ini", sizeof(".ini") - 1, YACONF_FORMAT_INI },
+#ifdef YACONF_ENABLE_YAML
+	{ ".yaml", sizeof(".yaml") - 1, YACONF_FORMAT_YAML },
+	{ ".yml", sizeof(".yml") - 1, YACONF_FORMAT_YAML },
+#endif
+};
+
+#define YACONF_CONFIG_FORMAT_COUNT (sizeof(yaconf_config_formats) / sizeof(yaconf_config_formats[0]))
+
+static const yaconf_config_format *php_yaconf_find_format(const char *name, size_t name_len) /* {{{ */ {
+	uint32_t i;
+
+	for (i = 0; i < YACONF_CONFIG_FORMAT_COUNT; i++) {
+		const yaconf_config_format *format = &yaconf_config_formats[i];
+		if (name_len > format->extension_len &&
+				memcmp(name + name_len - format->extension_len, format->extension, format->extension_len) == 0) {
+			return format;
+		}
+	}
+	return NULL;
+} /* }}} */
+
+#ifdef YACONF_ENABLE_YAML
+static int php_yaconf_yaml_plain_scalar(const char *value, size_t len, zval *result) /* {{{ */ {
+	char *copy, *end;
+	zend_long l;
+	double d;
+
+	if ((len == 1 && value[0] == '~') || (len == 4 && strncasecmp(value, "null", 4) == 0)) {
+		ZVAL_NULL(result);
+		return 1;
+	}
+	if (len == 4 && strncasecmp(value, "true", 4) == 0) {
+		ZVAL_TRUE(result);
+		return 1;
+	}
+	if (len == 5 && strncasecmp(value, "false", 5) == 0) {
+		ZVAL_FALSE(result);
+		return 1;
+	}
+	copy = estrndup(value, len);
+	errno = 0;
+	l = ZEND_STRTOL(copy, &end, 10);
+	if (errno == 0 && end == copy + len) {
+		ZVAL_LONG(result, l);
+		efree(copy);
+		return 1;
+	}
+	errno = 0;
+	d = strtod(copy, &end);
+	if (errno == 0 && end == copy + len && !isnan(d) && !isinf(d)) {
+		ZVAL_DOUBLE(result, d);
+		efree(copy);
+		return 1;
+	}
+	efree(copy);
+	ZVAL_STRINGL(result, value, len);
+	return 1;
+} /* }}} */
+
+static int php_yaconf_yaml_scalar(const yaml_node_t *node, zval *result) /* {{{ */ {
+	const char *value = (const char *)node->data.scalar.value;
+	size_t len = node->data.scalar.length;
+	char *end = NULL;
+	char *copy;
+	zend_long l;
+	double d;
+
+	if (strcmp((const char *)node->tag, YAML_NULL_TAG) == 0) {
+		ZVAL_NULL(result);
+		return 1;
+	}
+	if (strcmp((const char *)node->tag, YAML_BOOL_TAG) == 0) {
+		if (len == 4 && strncasecmp(value, "true", 4) == 0) {
+			ZVAL_TRUE(result);
+			return 1;
+		}
+		if (len == 5 && strncasecmp(value, "false", 5) == 0) {
+			ZVAL_FALSE(result);
+			return 1;
+		}
+		return 0;
+	}
+	if (strcmp((const char *)node->tag, YAML_INT_TAG) == 0) {
+		copy = estrndup(value, len);
+		errno = 0;
+		l = ZEND_STRTOL(copy, &end, 10);
+		if (errno == 0 && end == copy + len) {
+			ZVAL_LONG(result, l);
+			efree(copy);
+			return 1;
+		}
+		efree(copy);
+		return 0;
+	}
+	if (strcmp((const char *)node->tag, YAML_FLOAT_TAG) == 0) {
+		copy = estrndup(value, len);
+		errno = 0;
+		d = strtod(copy, &end);
+		if (errno == 0 && end == copy + len && !isnan(d) && !isinf(d)) {
+			ZVAL_DOUBLE(result, d);
+			efree(copy);
+			return 1;
+		}
+		efree(copy);
+		return 0;
+	}
+	if (strcmp((const char *)node->tag, YAML_STR_TAG) == 0) {
+		if (node->data.scalar.style == YAML_PLAIN_SCALAR_STYLE) {
+			return php_yaconf_yaml_plain_scalar(value, len, result);
+		}
+		ZVAL_STRINGL(result, value, len);
+		return 1;
+	}
+	return 0;
+} /* }}} */
+
+static int php_yaconf_yaml_mark_node(HashTable *seen, int index) /* {{{ */ {
+	zval marker;
+
+	if (zend_hash_index_exists(seen, (zend_ulong)index)) {
+		return 0; /* aliases create a DAG/cycle, which Yaconf deliberately excludes */
+	}
+	ZVAL_TRUE(&marker);
+	zend_hash_index_add(seen, (zend_ulong)index, &marker);
+	return 1;
+} /* }}} */
+
+static int php_yaconf_yaml_node(yaml_document_t *document, int index, HashTable *seen, zval *result) /* {{{ */ {
+	yaml_node_t *node;
+
+	if (!php_yaconf_yaml_mark_node(seen, index)) {
+		return 0;
+	}
+	node = yaml_document_get_node(document, index);
+	if (!node) {
+		return 0;
+	}
+	if (node->type == YAML_SCALAR_NODE) {
+		return php_yaconf_yaml_scalar(node, result);
+	}
+	if (node->type == YAML_SEQUENCE_NODE) {
+		yaml_node_item_t *item;
+		if (!node->tag || strcmp((const char *)node->tag, YAML_SEQ_TAG) != 0) {
+			return 0;
+		}
+		array_init_size(result, (uint32_t)(node->data.sequence.items.top - node->data.sequence.items.start));
+		for (item = node->data.sequence.items.start; item < node->data.sequence.items.top; item++) {
+			zval child;
+			if (!php_yaconf_yaml_node(document, *item, seen, &child)) {
+				zval_ptr_dtor(result);
+				ZVAL_UNDEF(result);
+				return 0;
+			}
+			zend_hash_next_index_insert(Z_ARRVAL_P(result), &child);
+		}
+		return 1;
+	}
+	if (node->type == YAML_MAPPING_NODE) {
+		yaml_node_pair_t *pair;
+		if (!node->tag || strcmp((const char *)node->tag, YAML_MAP_TAG) != 0) {
+			return 0;
+		}
+		array_init_size(result, (uint32_t)(node->data.mapping.pairs.top - node->data.mapping.pairs.start));
+		for (pair = node->data.mapping.pairs.start; pair < node->data.mapping.pairs.top; pair++) {
+			yaml_node_t *key = yaml_document_get_node(document, pair->key);
+			zval value;
+			if (!php_yaconf_yaml_mark_node(seen, pair->key) || !key || key->type != YAML_SCALAR_NODE ||
+					(strcmp((const char *)key->tag, YAML_STR_TAG) != 0 && strcmp((const char *)key->tag, YAML_INT_TAG) != 0) ||
+					!php_yaconf_yaml_node(document, pair->value, seen, &value)) {
+				zval_ptr_dtor(result);
+				ZVAL_UNDEF(result);
+				return 0;
+			}
+			if (strcmp((const char *)key->tag, YAML_INT_TAG) == 0) {
+				char *end;
+				char *copy = estrndup((const char *)key->data.scalar.value, key->data.scalar.length);
+				zend_long idx;
+				errno = 0;
+				idx = ZEND_STRTOL(copy, &end, 10);
+				if (errno != 0 || *end != '\0') {
+					efree(copy);
+					zval_ptr_dtor(&value);
+					zval_ptr_dtor(result);
+					ZVAL_UNDEF(result);
+					return 0;
+				}
+				efree(copy);
+				zend_hash_index_update(Z_ARRVAL_P(result), idx, &value);
+			} else {
+				zend_hash_str_update(Z_ARRVAL_P(result), (const char *)key->data.scalar.value, key->data.scalar.length, &value);
+			}
+		}
+		return 1;
+	}
+	return 0;
+} /* }}} */
+
+static int php_yaconf_parse_yaml_file(const char *filename, zval *result) /* {{{ */ {
+	FILE *fp;
+	yaml_parser_t parser;
+	yaml_document_t document;
+	yaml_document_t extra;
+	yaml_node_t *root;
+	HashTable seen;
+	int parser_ready = 0;
+	int document_ready = 0;
+	int ok = 0;
+
+	if (!(fp = VCWD_FOPEN(filename, "rb"))) {
+		return 0;
+	}
+	if (!yaml_parser_initialize(&parser)) {
+		fclose(fp);
+		return 0;
+	}
+	parser_ready = 1;
+	yaml_parser_set_input_file(&parser, fp);
+	if (!yaml_parser_load(&parser, &document)) {
+		php_error(E_WARNING, "yaconf: failed to parse YAML config '%s': %s", filename, parser.problem ? parser.problem : "invalid input");
+		goto done;
+	}
+	document_ready = 1;
+	root = yaml_document_get_root_node(&document);
+	if (!root || root->type != YAML_MAPPING_NODE) {
+		php_error(E_WARNING, "yaconf: YAML config '%s' must have a mapping root", filename);
+		goto done;
+	}
+	zend_hash_init(&seen, 16, NULL, NULL, 0);
+	if (!php_yaconf_yaml_node(&document, 1, &seen, result)) {
+		zend_hash_destroy(&seen);
+		php_error(E_WARNING, "yaconf: YAML config '%s' contains unsupported tags, aliases, or values", filename);
+		goto done;
+	}
+	zend_hash_destroy(&seen);
+	if (!yaml_parser_load(&parser, &extra)) {
+		zval_ptr_dtor(result);
+		ZVAL_UNDEF(result);
+		goto done;
+	}
+	if (yaml_document_get_root_node(&extra) != NULL) {
+		yaml_document_delete(&extra);
+		zval_ptr_dtor(result);
+		ZVAL_UNDEF(result);
+		php_error(E_WARNING, "yaconf: YAML config '%s' must contain exactly one document", filename);
+		goto done;
+	}
+	yaml_document_delete(&extra);
+	ok = 1;
+
+done:
+	if (document_ready) {
+		yaml_document_delete(&document);
+	}
+	if (parser_ready) {
+		yaml_parser_delete(&parser);
+	}
+	fclose(fp);
+	return ok;
+} /* }}} */
+#endif
+
+static int php_yaconf_parse_config_file(const char *filename, const yaconf_config_format *format, zval *result) /* {{{ */ {
+	zval parsed;
+	int ok;
+
+	if (format->type == YACONF_FORMAT_INI) {
+		return php_yaconf_parse_ini_file(filename, result);
+	}
+#ifdef YACONF_ENABLE_YAML
+	if (format->type == YACONF_FORMAT_YAML) {
+		ok = php_yaconf_parse_yaml_file(filename, &parsed);
+	} else
+#endif
+	{
+		return 0;
+	}
+	if (!ok) {
+		return 0;
+	}
+	if (!php_yaconf_zval_persistent(&parsed, result)) {
+		zval_ptr_dtor(&parsed);
+		php_error(E_WARNING, "yaconf: config '%s' contains unsupported values", filename);
+		return 0;
+	}
+	zval_ptr_dtor(&parsed);
+	return 1;
+} /* }}} */
+
 PHP_YACONF_API zval *php_yaconf_get(zend_string *name) /* {{{ */ {
-	if (EXPECTED(ini_containers)) {
+	if (EXPECTED(config_containers)) {
 		zval *pzval;
 		char *seg, *delim;
 		size_t len;
-		HashTable *target = ini_containers;
+		HashTable *target = config_containers;
 
 		if ((delim = memchr(ZSTR_VAL(name), '.', ZSTR_LEN(name)))) {
 			seg = ZSTR_VAL(name);
@@ -584,57 +909,49 @@ PHP_YACONF_API int php_yaconf_has(zend_string *name) /* {{{ */ {
 }
 /* }}} */
 
-static void php_yaconf_handle_file(const char *fullpath, const char *relpath, size_t relpath_len, const char *name, size_t key_len, HashTable *container, time_t mtime, int is_initial) /* {{{ */ {
-	/* load one ".ini" file, keyed by the basename without the ".ini" suffix */
+typedef struct _yaconf_scan_group {
+	uint32_t formats;
+	zend_bool has_directory;
+	zend_bool warned;
+} yaconf_scan_group;
+
+static void php_yaconf_handle_file(const char *fullpath, const char *relpath, size_t relpath_len, const char *name, size_t key_len, const yaconf_config_format *format, HashTable *container, time_t mtime) /* {{{ */ {
 	yaconf_filenode *node;
 	zval result;
 
-	/* name clash with a same-named directory, the directory wins and the file is skipped */
-	if (relpath_len > 4 && zend_hash_str_find_ptr(parsed_ini_dirs, relpath, relpath_len - 4)) {
-		php_error(E_WARNING,
-				"yaconf: name conflict between config file '%s' and a directory with the same name", relpath);
-		return;
-	}
-
-	node = (yaconf_filenode*)zend_hash_str_find_ptr(parsed_ini_files, relpath, relpath_len);
+	node = (yaconf_filenode*)zend_hash_str_find_ptr(parsed_config_files, relpath, relpath_len);
 	if (node && node->mtime == mtime) {
-		return; /* unchanged */
-	}
-
-	if (!php_yaconf_parse_ini_file(fullpath, &result)) {
 		return;
 	}
+	if (!php_yaconf_parse_config_file(fullpath, format, &result)) {
+		return; /* retain the existing value and node after a failed reload */
+	}
 
-	/* symtable_update replaces (and destroys) any previous value for this key */
 	php_yaconf_symtable_update(container, (char*)name, key_len, &result);
-
 	if (node) {
 		node->mtime = mtime;
 	} else {
 		yaconf_filenode n;
 		n.filename = zend_string_init(relpath, relpath_len, 1);
 		n.mtime = mtime;
-		zend_hash_update_mem(parsed_ini_files, n.filename, &n, sizeof(yaconf_filenode));
+		zend_hash_update_mem(parsed_config_files, n.filename, &n, sizeof(yaconf_filenode));
 	}
-}
-/* }}} */
+} /* }}} */
 
 static void php_yaconf_handle_directory(const char *fullpath, const char *relpath, size_t relpath_len, const char *name, size_t name_len, HashTable *container, time_t mtime, int is_initial, int depth) /* {{{ */ {
-	/* link an immutable persistent container for a sub-directory into the parent, then recurse */
 	yaconf_dirnode *node;
-	char file_relpath[MAXPATHLEN + 8];
-	size_t file_relpath_len;
+	uint32_t i;
 
-	/* a same-named ".ini" file loses to the directory: drop its registry entry,
-	   the stale container under this key is replaced by the symtable_update below */
-	file_relpath_len = snprintf(file_relpath, sizeof(file_relpath), "%s.ini", relpath);
-	zend_hash_str_del(parsed_ini_files, file_relpath, file_relpath_len);
-
-	if ((node = (yaconf_dirnode*)zend_hash_str_find_ptr(parsed_ini_dirs, relpath, relpath_len)) != NULL) {
-		/* already tracked */
+	/* A directory always owns its namespace. Drop every supported same-basename
+	 * file node before replacing the parent value with the directory container. */
+	for (i = 0; i < YACONF_CONFIG_FORMAT_COUNT; i++) {
+		char file_relpath[MAXPATHLEN + 8];
+		size_t file_relpath_len = snprintf(file_relpath, sizeof(file_relpath), "%s%s", relpath, yaconf_config_formats[i].extension);
+		zend_hash_str_del(parsed_config_files, file_relpath, file_relpath_len);
+	}
+	if ((node = (yaconf_dirnode*)zend_hash_str_find_ptr(parsed_config_dirs, relpath, relpath_len)) != NULL) {
 		return;
 	}
-
 	{
 		zval dirzv;
 		HashTable *dir_ht;
@@ -642,23 +959,22 @@ static void php_yaconf_handle_directory(const char *fullpath, const char *relpat
 
 		php_yaconf_hash_init(&dirzv, 8);
 		dir_ht = Z_ARRVAL(dirzv);
-
 		php_yaconf_symtable_update(container, (char*)name, name_len, &dirzv);
-
 		n.dirname = zend_string_init(relpath, relpath_len, 1);
 		n.mtime = mtime;
 		n.container = dir_ht;
-		zend_hash_update_mem(parsed_ini_dirs, n.dirname, &n, sizeof(yaconf_dirnode));
-
+		zend_hash_update_mem(parsed_config_dirs, n.dirname, &n, sizeof(yaconf_dirnode));
 		php_yaconf_scan_directory(fullpath, relpath, relpath_len, dir_ht, is_initial, depth + 1);
 	}
-}
-/* }}} */
+} /* }}} */
 
 static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, size_t relpath_len, HashTable *container, int is_initial, int depth) /* {{{ */ {
-	/* recursively load ".ini" files and sub-directories into container, relpath is relative to yaconf.directory ("" for the root) */
+	/* Discover all supported candidates before loading any of them. This makes
+	 * same-basename conflicts independent of php_scandir() ordering. */
 	int ndir;
 	struct dirent **namelist;
+	HashTable groups;
+	yaconf_scan_group *group;
 	uint32_t i;
 
 	if (depth > YACONF_MAX_DIR_DEPTH) {
@@ -666,51 +982,80 @@ static int php_yaconf_scan_directory(const char *dirpath, const char *relpath, s
 				"yaconf: directory nesting deeper than %d levels at '%s', skipping", YACONF_MAX_DIR_DEPTH, dirpath);
 		return 0;
 	}
-
 	if ((ndir = php_scandir(dirpath, &namelist, 0, php_alphasort)) <= 0) {
 		return ndir;
+	}
+	zend_hash_init(&groups, (uint32_t)ndir, NULL, NULL, 0);
+
+	for (i = 0; i < (uint32_t)ndir; i++) {
+		char *name = namelist[i]->d_name;
+		size_t name_len = strlen(name), key_len = 0;
+		char fullpath[MAXPATHLEN];
+		zend_stat_t sb = {0};
+		const yaconf_config_format *format = NULL;
+		yaconf_scan_group *group;
+
+		if (name[0] == '.' && (name_len == 1 || (name_len == 2 && name[1] == '.'))) continue;
+		snprintf(fullpath, sizeof(fullpath), "%s%c%s", dirpath, DEFAULT_SLASH, name);
+		if (VCWD_STAT(fullpath, &sb) != 0) continue;
+		if (S_ISDIR(sb.st_mode)) {
+			key_len = name_len;
+		} else if (S_ISREG(sb.st_mode) && (format = php_yaconf_find_format(name, name_len))) {
+			key_len = name_len - format->extension_len;
+		} else {
+			continue;
+		}
+		group = zend_hash_str_find_ptr(&groups, name, key_len);
+		if (!group) {
+			group = emalloc(sizeof(*group));
+			memset(group, 0, sizeof(*group));
+			zend_hash_str_add_ptr(&groups, name, key_len, group);
+		}
+		if (S_ISDIR(sb.st_mode)) group->has_directory = 1;
+		else group->formats++;
 	}
 
 	for (i = 0; i < (uint32_t)ndir; i++) {
 		char *name = namelist[i]->d_name;
-		size_t name_len = strlen(name);
-		char fullpath[MAXPATHLEN];
-		char sub_relpath[MAXPATHLEN];
+		size_t name_len = strlen(name), key_len;
+		char fullpath[MAXPATHLEN], sub_relpath[MAXPATHLEN];
 		size_t sub_relpath_len;
 		zend_stat_t sb = {0};
+		const yaconf_config_format *format = NULL;
+		yaconf_scan_group *group;
 
-		if (name[0] == '.' && (name_len == 1 || (name_len == 2 && name[1] == '.'))) {
-			free(namelist[i]);
-			continue;
-		}
-
+		if (name[0] == '.' && (name_len == 1 || (name_len == 2 && name[1] == '.'))) goto next;
 		snprintf(fullpath, sizeof(fullpath), "%s%c%s", dirpath, DEFAULT_SLASH, name);
-		if (VCWD_STAT(fullpath, &sb) != 0) {
-			/* vanished between scandir() and stat() */
-			free(namelist[i]);
-			continue;
+		if (VCWD_STAT(fullpath, &sb) != 0) goto next;
+		if (S_ISDIR(sb.st_mode)) key_len = name_len;
+		else if (S_ISREG(sb.st_mode) && (format = php_yaconf_find_format(name, name_len))) key_len = name_len - format->extension_len;
+		else goto next;
+		group = zend_hash_str_find_ptr(&groups, name, key_len);
+		if ((!S_ISDIR(sb.st_mode) && group->has_directory) || (!group->has_directory && group->formats > 1)) {
+			if (!group->warned) {
+				php_error(E_WARNING, group->has_directory
+						? "yaconf: name conflict between supported config files and directory '%.*s'; directory wins"
+						: "yaconf: name conflict between supported config files named '%.*s'; all files skipped",
+						(int)key_len, name);
+				group->warned = 1;
+			}
+			goto next;
 		}
-
-		if (relpath_len) {
-			sub_relpath_len = snprintf(sub_relpath, sizeof(sub_relpath), "%s/%s", relpath, name);
-		} else {
-			sub_relpath_len = snprintf(sub_relpath, sizeof(sub_relpath), "%s", name);
-		}
-
+		if (relpath_len) sub_relpath_len = snprintf(sub_relpath, sizeof(sub_relpath), "%s/%s", relpath, name);
+		else sub_relpath_len = snprintf(sub_relpath, sizeof(sub_relpath), "%s", name);
 		if (S_ISDIR(sb.st_mode)) {
 			php_yaconf_handle_directory(fullpath, sub_relpath, sub_relpath_len, name, name_len, container, sb.st_mtime, is_initial, depth);
-		} else if (S_ISREG(sb.st_mode)) {
-			char *dot;
-			if ((dot = strrchr(name, '.')) && strcmp(dot, ".ini") == 0) {
-				php_yaconf_handle_file(fullpath, sub_relpath, sub_relpath_len, name, (size_t)(dot - name), container, sb.st_mtime, is_initial);
-			}
+		} else {
+			php_yaconf_handle_file(fullpath, sub_relpath, sub_relpath_len, name, key_len, format, container, sb.st_mtime);
 		}
+next:
 		free(namelist[i]);
 	}
 	free(namelist);
+	ZEND_HASH_FOREACH_PTR(&groups, group) { efree(group); } ZEND_HASH_FOREACH_END();
+	zend_hash_destroy(&groups);
 	return ndir;
-}
-/* }}} */
+} /* }}} */
 
 static void php_yaconf_check_directories(const char *root) /* {{{ */ {
 	/* stat every tracked sub-directory and re-scan the changed ones, changes inside a sub-directory do not bump the root's mtime */
@@ -718,13 +1063,13 @@ static void php_yaconf_check_directories(const char *root) /* {{{ */ {
 	yaconf_dirnode *node;
 	uint32_t count, i, n = 0;
 
-	if (!parsed_ini_dirs || (count = zend_hash_num_elements(parsed_ini_dirs)) == 0) {
+	if (!parsed_config_dirs || (count = zend_hash_num_elements(parsed_config_dirs)) == 0) {
 		return;
 	}
 
 	/* re-scanning can add new dirnodes, so iterate over a snapshot */
 	snapshot = (yaconf_dirnode**)emalloc(count * sizeof(yaconf_dirnode*));
-	ZEND_HASH_FOREACH_PTR(parsed_ini_dirs, node) {
+	ZEND_HASH_FOREACH_PTR(parsed_config_dirs, node) {
 		snapshot[n++] = node;
 	} ZEND_HASH_FOREACH_END();
 
@@ -915,7 +1260,7 @@ static int yaconf_compact(void) /* {{{ */ {
 	size_t total = 0;
 	yaconf_dirnode *node;
 
-	if (!ini_containers) {
+	if (!config_containers) {
 		return 1;
 	}
 
@@ -926,8 +1271,8 @@ static int yaconf_compact(void) /* {{{ */ {
 	{
 		zend_string *key;
 		zval *val;
-		zend_hash_index_update_ptr(&ht_set, (zend_ulong)(uintptr_t)ini_containers, ini_containers);
-		ZEND_HASH_FOREACH_STR_KEY_VAL(ini_containers, key, val) {
+		zend_hash_index_update_ptr(&ht_set, (zend_ulong)(uintptr_t)config_containers, config_containers);
+		ZEND_HASH_FOREACH_STR_KEY_VAL(config_containers, key, val) {
 			if (key) {
 				zend_hash_str_update_ptr(&str_set, ZSTR_VAL(key), ZSTR_LEN(key), key);
 			}
@@ -973,10 +1318,10 @@ static int yaconf_compact(void) /* {{{ */ {
 		zend_hash_str_update_ptr(&str_xlat, ZSTR_VAL(new_str), ZSTR_LEN(new_str), new_str);
 	} ZEND_HASH_FOREACH_END();
 
-	/* step 5-6: copy HashTables, update ini_containers and dirnode containers */
+	/* step 5-6: copy HashTables, update config_containers and dirnode containers */
 	zend_hash_init(&ht_xlat, zend_hash_num_elements(&ht_set), NULL, NULL, 0);
-	yaconf_compact_copy_ht(ini_containers, &cursor, &str_xlat, &ht_xlat);
-	ini_containers = yaconf_compact_ht(&ht_xlat, ini_containers);
+	yaconf_compact_copy_ht(config_containers, &cursor, &str_xlat, &ht_xlat);
+	config_containers = yaconf_compact_ht(&ht_xlat, config_containers);
 
 	/* the block lives past any request, so flag every block table persistent:
 	   when a detached table is later grown by the engine's own resize path,
@@ -994,8 +1339,8 @@ static int yaconf_compact(void) /* {{{ */ {
 		} ZEND_HASH_FOREACH_END();
 	}
 
-	if (parsed_ini_dirs) {
-		ZEND_HASH_FOREACH_PTR(parsed_ini_dirs, node) {
+	if (parsed_config_dirs) {
+		ZEND_HASH_FOREACH_PTR(parsed_config_dirs, node) {
 			HashTable *new_container = yaconf_compact_ht(&ht_xlat, node->container);
 			if (new_container) {
 				node->container = new_container;
@@ -1010,7 +1355,7 @@ static int yaconf_compact(void) /* {{{ */ {
 		} ZEND_HASH_FOREACH_END();
 
 		ZEND_HASH_FOREACH_PTR(&ht_set, ht) {
-			if (ht != ini_containers && HT_IS_INITIALIZED(ht) && ht->nNumUsed > 0) {
+			if (ht != config_containers && HT_IS_INITIALIZED(ht) && ht->nNumUsed > 0) {
 				pefree(HT_GET_DATA_ADDR(ht), 0);
 			}
 			pefree(ht, 0);
@@ -1092,18 +1437,20 @@ PHP_METHOD(yaconf, __debug_info) {
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "key", sizeof("key") - 1, &zv);
 		Z_TRY_ADDREF(zv);
 
-		/* stored values are interned strings or immutable arrays only, Z_PTR_P gets the value's address */
-		len = sprintf(address, "%p", Z_PTR_P(val));
+		/* Scalars have no independent backing allocation. */
+		if (Z_TYPE_P(val) == IS_STRING || Z_TYPE_P(val) == IS_ARRAY) {
+			len = sprintf(address, "%p", Z_PTR_P(val));
+		} else {
+			len = sprintf(address, "(scalar)");
+		}
 		ZVAL_STR(&zv, zend_string_init(address, len, 0));
 
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "address", sizeof("address") - 1, &zv);
 		zend_hash_str_add_new(Z_ARRVAL_P(return_value), "val", sizeof("val") - 1, val);
 		Z_TRY_ADDREF_P(val);
 
-		/* changed: false when the stored value's data still lives inside the compacted block,
-		 *           meaning the OS hasn't been forced to copy the page (COW works).
-		 *           true when the value has been reallocated outside the block (e.g. RINIT reload). */
-		if (yaconf_block && Z_TYPE_P(val) != IS_NULL) {
+		/* Only strings and arrays can remain physically inside the compacted block. */
+		if (yaconf_block && (Z_TYPE_P(val) == IS_STRING || Z_TYPE_P(val) == IS_ARRAY)) {
 			uintptr_t block_start = (uintptr_t)yaconf_block;
 			uintptr_t block_end   = block_start + yaconf_block_size;
 			uintptr_t val_ptr     = (uintptr_t)Z_PTR_P(val);
@@ -1162,6 +1509,11 @@ PHP_MINIT_FUNCTION(yaconf)
 	yaconf_ce = zend_register_internal_class_ex(&ce, NULL);
 
 	REGISTER_STRINGL_CONSTANT("YACONF_VERSION", PHP_YACONF_VERSION, sizeof(PHP_YACONF_VERSION)-1, CONST_CS|CONST_PERSISTENT);
+#ifdef YACONF_ENABLE_YAML
+	REGISTER_BOOL_CONSTANT("YACONF_HAVE_YAML", 1, CONST_CS|CONST_PERSISTENT);
+#else
+	REGISTER_BOOL_CONSTANT("YACONF_HAVE_YAML", 0, CONST_CS|CONST_PERSISTENT);
+#endif
 
 	if ((dirname = YACONF_G(directory)) && strlen(dirname)
 #ifndef ZTS
@@ -1175,17 +1527,17 @@ PHP_MINIT_FUNCTION(yaconf)
 		/* Phase 1: parse with temporary memory (emalloc) */
 		yaconf_parse_persistent = 0;
 
-		ini_containers = (HashTable*)pemalloc(sizeof(HashTable), 0);
-		zend_hash_init(ini_containers, 8, NULL, NULL, 0);
+		config_containers = (HashTable*)pemalloc(sizeof(HashTable), 0);
+		zend_hash_init(config_containers, 8, NULL, NULL, 0);
 
-		/* parsed_ini_files and parsed_ini_dirs are always persistent (used across requests) */
-		PALLOC_HASHTABLE(parsed_ini_files);
-		zend_hash_init(parsed_ini_files, 8, NULL, NULL, 1);
+		/* parsed_config_files and parsed_config_dirs are always persistent (used across requests) */
+		PALLOC_HASHTABLE(parsed_config_files);
+		zend_hash_init(parsed_config_files, 8, NULL, NULL, 1);
 
-		PALLOC_HASHTABLE(parsed_ini_dirs);
-		zend_hash_init(parsed_ini_dirs, 8, NULL, NULL, 1);
+		PALLOC_HASHTABLE(parsed_config_dirs);
+		zend_hash_init(parsed_config_dirs, 8, NULL, NULL, 1);
 
-		if (php_yaconf_scan_directory(dirname, "", 0, ini_containers, 1, 0) <= 0) {
+		if (php_yaconf_scan_directory(dirname, "", 0, config_containers, 1, 0) <= 0) {
 			php_error(E_ERROR, "Couldn't opendir '%s'", dirname);
 		}
 
@@ -1216,11 +1568,11 @@ PHP_RINIT_FUNCTION(yaconf)
 
 		YACONF_G(last_check) = time(NULL);
 
-		if (ini_containers && (dirname = YACONF_G(directory)) && !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)) {
+		if (config_containers && (dirname = YACONF_G(directory)) && !VCWD_STAT(dirname, &dir_sb) && S_ISDIR(dir_sb.st_mode)) {
 			if (dir_sb.st_mtime != YACONF_G(directory_mtime)) {
 				YACONF_DEBUG("config directory modified, re-scan the root level");
 				YACONF_G(directory_mtime) = dir_sb.st_mtime;
-				php_yaconf_scan_directory(dirname, "", 0, ini_containers, 0, 0);
+				php_yaconf_scan_directory(dirname, "", 0, config_containers, 0, 0);
 			}
 			/* changes inside a sub-directory do not bump the root's mtime, check them individually */
 			php_yaconf_check_directories(dirname);
@@ -1268,17 +1620,17 @@ PHP_MSHUTDOWN_FUNCTION(yaconf)
 {
 	UNREGISTER_INI_ENTRIES();
 
-	if (parsed_ini_dirs) {
-		php_yaconf_hash_destroy(parsed_ini_dirs);
+	if (parsed_config_dirs) {
+		php_yaconf_hash_destroy(parsed_config_dirs);
 	}
 
-	if (parsed_ini_files) {
-		php_yaconf_hash_destroy(parsed_ini_files);
+	if (parsed_config_files) {
+		php_yaconf_hash_destroy(parsed_config_files);
 	}
 
-	if (ini_containers) {
-		yaconf_containers_destroy(ini_containers);
-		ini_containers = NULL;
+	if (config_containers) {
+		yaconf_containers_destroy(config_containers);
+		config_containers = NULL;
 		yaconf_compact_free();
 	}
 
@@ -1301,10 +1653,10 @@ PHP_MINFO_FUNCTION(yaconf)
 	php_info_print_table_end();
 
 	php_info_print_table_start();
-	php_info_print_table_header(2, "parsed filename", "mtime");
-	if (parsed_ini_files && zend_hash_num_elements(parsed_ini_files)) {
+	php_info_print_table_header(2, "parsed supported config file", "mtime");
+	if (parsed_config_files && zend_hash_num_elements(parsed_config_files)) {
 		yaconf_filenode *node;
-		ZEND_HASH_FOREACH_PTR(parsed_ini_files, node) {
+		ZEND_HASH_FOREACH_PTR(parsed_config_files, node) {
 			php_info_print_table_row(2, ZSTR_VAL(node->filename),  ctime(&node->mtime));
 		} ZEND_HASH_FOREACH_END();
 	}
@@ -1312,9 +1664,9 @@ PHP_MINFO_FUNCTION(yaconf)
 
 	php_info_print_table_start();
 	php_info_print_table_header(2, "config sub-directory", "mtime");
-	if (parsed_ini_dirs && zend_hash_num_elements(parsed_ini_dirs)) {
+	if (parsed_config_dirs && zend_hash_num_elements(parsed_config_dirs)) {
 		yaconf_dirnode *node;
-		ZEND_HASH_FOREACH_PTR(parsed_ini_dirs, node) {
+		ZEND_HASH_FOREACH_PTR(parsed_config_dirs, node) {
 			php_info_print_table_row(2, ZSTR_VAL(node->dirname),  ctime(&node->mtime));
 		} ZEND_HASH_FOREACH_END();
 	}
@@ -1324,7 +1676,7 @@ PHP_MINFO_FUNCTION(yaconf)
 	php_info_print_table_header(2, "compacted block", "value");
 	if (yaconf_block) {
 		char buf[128];
-		uint32_t file_count = parsed_ini_files ? zend_hash_num_elements(parsed_ini_files) : 0;
+		uint32_t file_count = parsed_config_files ? zend_hash_num_elements(parsed_config_files) : 0;
 		snprintf(buf, sizeof(buf), "%u file(s)", file_count);
 		php_info_print_table_row(2, "compacted files", buf);
 		snprintf(buf, sizeof(buf), "%zu bytes (%.1f KB)", yaconf_block_size, (double)yaconf_block_size / 1024.0);
