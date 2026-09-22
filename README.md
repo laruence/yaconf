@@ -4,10 +4,21 @@
 
 A PHP Persistent Configuration Container
 
+## Features
+
+- Fast, light
+- Zero-copy when accessing configurations
+- Configs consolidated into one compacted block — lower memory, better cache locality (since 1.2.0)
+- INI sections and section inheritance (up to 16 levels deep)
+- Sub-directories of arbitrary depth (up to 16 levels) — `sub/x.ini` is addressed as `"sub.x"` (since 1.2.0)
+- Configurations reload automatically after changes (non-ZTS only), including sub-directories
+- Configuration can live in a root-only directory outside the web root
+- C API exported for use by other PHP extensions
+
 ## Requirement
 
 - PHP 7+
-- Optional YAML support: libyaml headers/library plus `--with-yaml` or `--with-yaml=/prefix`
+- Optional YAML support: libyaml headers/library plus `--with-yaml`
 
 ## Introduction
 
@@ -30,17 +41,6 @@ That ordering is what makes permission separation possible. Configuration can si
 **The trade-off is hot reload.** Reloading runs in the worker (RINIT), and a worker that cannot read the directory just keeps serving the configuration loaded at startup. Picking up a change means restarting or gracefully reloading PHP-FPM — a reload re-executes the master as root, so MINIT runs again and the new configuration is read.
 
 If live reload matters more than the permission separation, make the directory readable by the pool user and tune `yaconf.check_delay`, the number of seconds between re-checks. Note that `0` means re-check on every request: it is the most eager setting, not a way to disable reloading. ZTS builds never reload.
-
-## Features
-
-- Fast, light
-- Zero-copy when accessing configurations
-- Configs consolidated into one compacted block — lower memory, better cache locality (since 1.2.0)
-- INI sections and section inheritance (up to 16 levels deep)
-- Sub-directories of arbitrary depth (up to 16 levels) — `sub/x.ini` is addressed as `"sub.x"` (since 1.2.0)
-- Configurations reload automatically after changes (non-ZTS only), including sub-directories
-- Configuration can live in a root-only directory outside the web root
-- C API exported for use by other PHP extensions
 
 ## Install
 
