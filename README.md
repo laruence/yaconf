@@ -11,34 +11,25 @@ A PHP Persistent Configuration Container
 
 ## Introduction
 
-Yaconf is a configuration container. It parses INI files by default, with optional YAML support backed directly by libyaml, and stores the result in PHP at startup. Configurations live in persistent memory across the entire PHP lifecycle, which makes it very fast.
+Yaconf is a configuration container. It parses INI files by default, with optional YAML support backed directly by libyaml, and stores the result in persistent memory at startup, where it stays for the entire PHP lifecycle.
 
-Yaconf uses an **immutable data + Copy-on-Write** design rather than shared memory (shmget/mmap). Parsed configs are stored in persistent `zend_array`s marked `IS_ARRAY_IMMUTABLE` — and all keys are interned as permanent strings. Because the hash tables are immutable, PHP-FPM workers forked from the master process share the **same physical memory pages** via the OS kernel's COW mechanism. As long as the configuration doesn't change, memory is allocated only once — no matter how many workers are running. When a config file is modified and Yaconf reloads it (in non-ZTS mode), the kernel copies only the changed pages on write, isolating the new config from the old.
+### Ultra fast
 
-Since 1.2.0, once parsing finishes Yaconf **compacts the whole config tree into a single contiguous block** (two-phase compaction): it walks the parsed tree, collects every string and hash table, allocates one block, and copies them in — deduplicating strings by content and re-laying out every hash table into canonical engine layout. All the scattered per-node allocations from the parse phase are freed. The win is twofold: fewer individual allocations means lower memory overhead, and a contiguous layout means better cache locality and fewer touched pages when workers COW the config. When a config file changes, Yaconf rebuilds and re-compacts from scratch; tables that need to grow are **detached** onto the persistent heap first so the engine can resize them without touching the block.
+Most PHP applications parse their configuration on every request. Yaconf does it once at startup and serves from memory forever: `Yaconf::get()` is a pure hash lookup — no file I/O, no parsing, no per-request allocation.
 
-> **⚠ ZTS (Thread-Safe) builds**: Yaconf loads configurations at startup as usual, but automatic reloading is not available (`yaconf.check_delay` is NTS-only). Restart PHP to pick up config changes.
+The parsed config lives in persistent, immutable `zend_array`s, so PHP-FPM workers forked from the master share the same physical memory pages via the kernel's copy-on-write mechanism — memory is allocated once no matter how many workers run. Since 1.2.0 the whole tree is also compacted into a single contiguous block (strings deduplicated, hash tables re-laid out), cutting memory overhead and improving cache locality.
 
-### When to use Yaconf
+Yaconf stores static configuration — values read often but changed rarely, like credentials, feature flags, and routing tables — and resolves INI constants and environment variables once at parse time rather than on access. For runtime caching — query results, computed data, HTML fragments, ephemeral tokens — use [Yac](https://github.com/laruence/yac), which shares the same "local first, zero dependency" philosophy.
 
-Most PHP applications have configuration files that get parsed on every request. Every request pays the I/O and parse cost, then throws the result away — only to do it again on the next request.
+### Secure
 
-Yaconf flips this: **parse once at startup, serve from memory forever.** The parsed config lives in persistent `zend_array`s with immutable hash tables. `Yaconf::get()` is a pure hash lookup — no file I/O, no parsing, no memory allocation per request.
+Yaconf reads the configuration directory once, at startup. Under PHP-FPM that read happens in the master process, which normally runs as root; workers drop to the pool user only after forking. Requests are then served entirely from memory, so a worker never reopens those files.
 
-- **Best for**: Read-heavy config that changes infrequently — database credentials, feature flags, routing tables, service discovery maps. Anything you parse on every request today.
-- **Not ideal for**: Config that changes per-request or per-user. Dynamic configuration that needs runtime computation (Yaconf stores static values — INI constants and environment variables are resolved once during parsing, not on access).
-- **Scale**: The memory overhead is minimal — a few KB per configuration file, shared across all workers via COW until the config changes. There's no practical limit on the number of supported configuration files beneath `yaconf.directory`.
+That ordering is what makes permission separation possible. Configuration can sit outside the web root, in a root-owned directory the pool user cannot read. Application code only ever calls `Yaconf::get()`, never the files themselves — so a file-disclosure or file-inclusion vulnerability cannot reach the credentials stored there.
 
-Yaconf is for static configuration. For runtime caching — database query results, computed data, HTML fragments, ephemeral tokens — use [Yac](https://github.com/laruence/yac), which shares the same "local first, zero dependency" design philosophy.
+**The trade-off is hot reload.** Reloading runs in the worker (RINIT), and a worker that cannot read the directory just keeps serving the configuration loaded at startup. Picking up a change means restarting or gracefully reloading PHP-FPM — a reload re-executes the master as root, so MINIT runs again and the new configuration is read.
 
-## What's new in 1.2.0
-
-- **Sub-directory support**: supported configuration files in sub-directories are loaded recursively (up to 16 levels) and namespaced by the directory name — `sub/x.ini` is addressed as `"sub.x"`. Sub-directories are tracked for hot reload too.
-- **Compact block storage**: all parsed configurations are consolidated into a single contiguous block after startup (see the [Introduction](#introduction)) — lower memory overhead, better cache locality, and fewer pages touched when workers COW.
-- **PHP PIE support**: installable via [PIE](https://github.com/php/pie), the PHP Installer for Extensions.
-- A name conflict between a supported configuration file and a same-named directory raises a warning; the directory wins and the file is skipped.
-- Fixed memory leaks when a dot-notation key overrides a scalar value, and on foreach-by-ref over compact block tables with PHP 7.0.
-- `Yaconf::__debug_info()` now reports the stored value's address.
+If live reload matters more than the permission separation, make the directory readable by the pool user and tune `yaconf.check_delay`, the number of seconds between re-checks. Note that `0` means re-check on every request: it is the most eager setting, not a way to disable reloading. ZTS builds never reload.
 
 ## Features
 
@@ -48,6 +39,7 @@ Yaconf is for static configuration. For runtime caching — database query resul
 - INI sections and section inheritance (up to 16 levels deep)
 - Sub-directories of arbitrary depth (up to 16 levels) — `sub/x.ini` is addressed as `"sub.x"` (since 1.2.0)
 - Configurations reload automatically after changes (non-ZTS only), including sub-directories
+- Configuration can live in a root-only directory outside the web root
 - C API exported for use by other PHP extensions
 
 ## Install
@@ -209,7 +201,7 @@ service:
     - /v1/config
 ```
 
-YAML mappings become arrays and lists retain numeric indexes. The files above are available as `app` and `service`, so nested values are addressed with dot notation such as `app.database.host`, `app.features.0`, and `service.service.endpoints.1`.
+The files above are available as `app` and `service`, so nested values are addressed with dot notation such as `app.database.host`, `app.features.0`, and `service.service.endpoints.1`.
 
 ### Run
 
@@ -241,8 +233,6 @@ array(3) {
 }
 */
 ```
-
-As you can see, Yaconf supports string, map (array), INI section inheritance, environment variables, and PHP constants.
 
 You can also access configurations using dot notation:
 
@@ -283,8 +273,6 @@ array(2) {
 */
 ```
 
-The `children` section inherits values from the `base` section, and can override the values it wants to change.
-
 ### Sub-directories
 
 > Sub-directory support is available since 1.2.0.
@@ -301,7 +289,7 @@ Now assume `/tmp/yaconf` also contains sub-directories:
         └── y.ini    ; level="three"
 ```
 
-Each sub-directory becomes a key level; files inside it are addressed with the directory name as a prefix — at any depth:
+Each is addressed with the directory name as a prefix, at any depth:
 
 ```php
 $ php -r 'var_dump(Yaconf::get("sub.x.role"));'
@@ -324,8 +312,6 @@ array(2) {
 }
 */
 ```
-
-A directory and any supported file with the same basename would claim the same key; the directory wins — Yaconf emits one warning, skips every matching supported file, and retains the directory namespace.
 
 ### phpinfo() Output
 
