@@ -179,6 +179,38 @@ children="set"
 
 The `[children:base]` syntax means: the `children` section inherits all keys from the `base` section, and can override any of them. Section inheritance can be chained (e.g. `[grandchild:children]` inheriting from a section that itself inherits from `base`), up to a maximum depth of 16.
 
+### YAML Files
+
+> YAML examples require a build configured with `--with-yaml`.
+
+**app.yaml**
+
+```yaml
+name: yaconf
+version: 1.2
+active: true
+owner: null
+database:
+  host: 127.0.0.1
+  port: 3306
+features:
+  - fast
+  - zero-copy
+```
+
+**service.yml**
+
+```yaml
+service:
+  name: api
+  replicas: 3
+  endpoints:
+    - /health
+    - /v1/config
+```
+
+YAML mappings become arrays and lists retain numeric indexes. The files above are available as `app` and `service`, so nested values are addressed with dot notation such as `app.database.host`, `app.features.0`, and `service.service.endpoints.1`.
+
 ### Run
 
 Let's retrieve the configurations from Yaconf:
