@@ -1,89 +1,58 @@
 --TEST--
-Yaconf section inheritance edge cases
---SKIPIF--
-<?php if (!extension_loaded("yaconf")) print "skip"; ?>
+Yaconf: sparse tables keep every key reachable after the compacted hash region is rebuilt
 --INI--
-yaconf.directory={PWD}/inis/017
+yaconf.directory={PWD}/inis/017/
 --FILE--
 <?php
-// inis/017 layout:
-//   sections.ini  simple/base/child/orphan/grandchild/child_override sections
-//   inherit.ini   numeric section names: [1], [2:1], [base], [child:base]
-
-// Section with no inheritance
-var_dump(Yaconf::get("sections.simple"));
-
-// Section inheriting from existing parent
-var_dump(Yaconf::get("sections.child"));
-
-// Section inheriting from NON-existing parent — should still work, just no inherited values
-var_dump(Yaconf::get("sections.orphan"));
-
-// Chain inheritance: grandchild -> child -> base
-var_dump(Yaconf::get("sections.grandchild"));
-
-// Override with different type: parent has string, child overrides with array
-var_dump(Yaconf::get("sections.child_override"));
-
-// Control cases: string section names always worked
-var_dump(Yaconf::get("inherit.child.parent_key"));
-var_dump(Yaconf::get("inherit.base.parent_key"));
-var_dump(Yaconf::get("inherit.2.own"));
-var_dump(Yaconf::get("inherit.2.shared"));
-var_dump(Yaconf::get("inherit.1.shared"));
-
-// [2:1] must inherit from the numeric section [1]
-var_dump(Yaconf::get("inherit.2.inherited"));
-var_dump(Yaconf::get("inherit.1"));
-var_dump(Yaconf::get("inherit.2"));
+// inis/017/sparse.ini yields a 22-key top-level table (k01..k20, sub, num).
+// Parsing allocates tables at nTableSize=128, so this table has 22 buckets in
+// a 128-slot region — the compact pass used to shrink-and-rehash such tables;
+// it now copies the full region as-is.  Either way every key must stay
+// reachable and iteration must keep insertion order (bucket order is copied
+// as-is, only the hash slots move).
+for ($i = 1; $i <= 20; $i++) {
+    printf("k%02d=%s\n", $i, Yaconf::get(sprintf("sparse.k%02d", $i)));
+}
+var_dump(Yaconf::get("sparse.sub"));
+var_dump(Yaconf::get("sparse.num"));
+var_dump(array_keys(Yaconf::get("sparse")) === array_merge(
+    array_map(function($i){ return sprintf("k%02d", $i); }, range(1, 20)),
+    ["sub", "num"]
+));
+var_dump(Yaconf::has("sparse.k01"));
+var_dump(Yaconf::has("sparse.nope"));
 ?>
---EXPECTF--
-array(1) {
+--EXPECT--
+k01=v01
+k02=v02
+k03=v03
+k04=v04
+k05=v05
+k06=v06
+k07=v07
+k08=v08
+k09=v09
+k10=v10
+k11=v11
+k12=v12
+k13=v13
+k14=v14
+k15=v15
+k16=v16
+k17=v17
+k18=v18
+k19=v19
+k20=v20
+array(2) {
   ["a"]=>
   string(1) "1"
-}
-array(2) {
-  ["base_key"]=>
-  string(4) "base"
-  ["child_key"]=>
-  string(5) "child"
+  ["b"]=>
+  string(1) "2"
 }
 array(1) {
-  ["c"]=>
-  string(1) "3"
+  [0]=>
+  string(4) "zero"
 }
-array(3) {
-  ["base_key"]=>
-  string(4) "base"
-  ["child_key"]=>
-  string(5) "child"
-  ["grand_key"]=>
-  string(5) "grand"
-}
-array(1) {
-  ["override_me"]=>
-  array(1) {
-    [0]=>
-    string(1) "x"
-  }
-}
-string(10) "base_value"
-string(10) "base_value"
-string(9) "child_own"
-string(10) "from_child"
-string(11) "from_parent"
-string(12) "parent_value"
-array(2) {
-  ["inherited"]=>
-  string(12) "parent_value"
-  ["shared"]=>
-  string(11) "from_parent"
-}
-array(3) {
-  ["inherited"]=>
-  string(12) "parent_value"
-  ["shared"]=>
-  string(10) "from_child"
-  ["own"]=>
-  string(9) "child_own"
-}
+bool(true)
+bool(true)
+bool(false)

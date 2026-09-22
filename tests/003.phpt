@@ -1,24 +1,46 @@
 --TEST--
-Check for Yaconf
+Check for Yaconf inis
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
 yaconf.directory={PWD}/inis/003/
 --FILE--
 <?php 
-var_dump(Yaconf::get("section.bar.application.test"));
-var_dump(Yaconf::has("section.bar.application"));
-var_dump(Yaconf::has("section.bar.application.."));
-var_dump(Yaconf::has(".section.bar..application"));
-var_dump(Yaconf::has("section.bar..application"));
-var_dump(Yaconf::has("section.bar.application.nonexists"));
-var_dump(Yaconf::get("section.bar.application.nonexists", "default"));
+print_r(Yaconf::get("basic"));
 ?>
---EXPECTF--
-string(1) "1"
-bool(true)
-bool(false)
-bool(false)
-bool(false)
-bool(false)
-string(7) "default"
+--EXPECT--
+Array
+(
+    [a] => Array
+        (
+            [0] => 1
+            [1] => 1
+            [2] => Array
+                (
+                    [0] => 1
+                )
+
+        )
+
+    [b] => Array
+        (
+            [a] => 0
+            [b] => Array
+                (
+                    [c] => Array
+                        (
+                            [d] => Array
+                                (
+                                    [0] => 0
+                                    [1] => 
+                                    [2] => 
+                                    [3] => 
+                                )
+
+                        )
+
+                )
+
+        )
+
+)

@@ -1,18 +1,19 @@
 --TEST--
-Check for Yaconf with same keys
+Check for empty array
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.directory={PWD}/inis/issue05
+yaconf.directory={PWD}/inis/007/
 --FILE--
 <?php 
-var_dump(Yaconf::get("issue05"));
+print_r(Yaconf::get('empty-array'));
 ?>
 --EXPECTF--
-array(1) {
-  ["foo"]=>
-  array(1) {
-    ["a"]=>
-    string(3) "bar"
-  }
-}
+Array
+(
+    [servers] => Array
+        (
+            [0] => 
+        )
+
+)

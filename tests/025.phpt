@@ -1,28 +1,87 @@
 --TEST--
-Yaconf: dot-notation key nesting beyond 64 levels triggers a warning, the file is skipped
+Yaconf RINIT boundary: check_delay skip and mtime unchanged skip
 --CREDITS--
 Jarvis (AI assistant to Laruence)
 --SKIPIF--
-<?php if (!extension_loaded("yaconf")) print "skip"; ?>
---INI--
-yaconf.directory={PWD}/inis/025
-log_errors=1
+<?php
+if (!extension_loaded("yaconf")) print "skip";
+if (substr(PHP_OS, 0, 3) == 'WIN') die("skip doesn't work on Windows");
+if (false === ini_get('yaconf.check_delay')) die("skip RINIT hot-reload not supported in ZTS");
+?>
 --FILE--
 <?php
-// inis/025 layout:
-//   deep.ini     a.b.c...ppp=value  (67 dots, 68 segments → exceeds 64-level limit)
-//   normal.ini   normal_key="ok"    (no dots, simple key)
+// NOTE: Two RINIT boundary cases:
+//   A) Directory mtime unchanged → no re-scan even if file content differs
+//   B) check_delay not elapsed → no check at all even if mtime changed
 
-// The deep key file is discarded entirely; other files in the same directory still load
-// (normal.ini → top-level key "normal")
-var_dump(Yaconf::get("normal.normal_key"));
+include "yaconf.inc";
 
-// The deeply nested key should not be accessible
-var_dump(Yaconf::get("deep"));
+$inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "025";
+$inifile = $inidir . DIRECTORY_SEPARATOR . "rinit.ini";
+
+function fetch($port, $suffix) {
+    $ctx = stream_context_create(["http" => ["timeout" => 3]]);
+    return file_get_contents("http://" . YACONF_SERVER_HOSTNAME . ":" . $port . "/index.php?key=" . urlencode($suffix), false, $ctx);
+}
+
+// ===== CASE A: modify file but NOT touch dir → mtime unchanged → no re-scan =====
+echo "== Case A: file changed, dir mtime unchanged ==\n";
+
+$port_a = yaconf_server_start($inidir);
+
+// Save original mtime for verification
+clearstatcache();
+$mtime_before = filemtime($inidir);
+echo "A1: " . fetch($port_a, "rinit.rinit.val");
+// Modify file WITHOUT touching directory
+$content = file_get_contents($inifile);
+$content = str_replace('val="original"', 'val="modified"', $content);
+file_put_contents($inifile, $content);
+sleep(1);
+
+// Verify dir mtime did NOT change
+clearstatcache();
+$mtime_after = filemtime($inidir);
+echo "A-dir-mtime-changed: " . ($mtime_before != $mtime_after ? "YES" : "NO") . "\n";
+
+// Request again — should still see old value because dir mtime unchanged
+echo "A2: " . fetch($port_a, "rinit.rinit.val");
+
+// Restore INI for next case
+file_put_contents($inifile, "[rinit]\nval=\"original\"\n");
+sleep(1);
+
+// ===== CASE B: check_delay=3600 prevents RINIT from even checking mtime =====
+echo "\n== Case B: check_delay=3600 blocks re-scan ==\n";
+
+// Start a fresh server with huge check_delay
+$port_b = yaconf_server_start($inidir, 3600);
+
+echo "B1: " . fetch($port_b, "rinit.rinit.val");
+// Modify file AND touch dir
+$content = file_get_contents($inifile);
+$content = str_replace('val="original"', 'val="modified"', $content);
+file_put_contents($inifile, $content);
+clearstatcache();
+touch($inidir);
+
+// Request immediately — check_delay=3600 should block re-scan
+echo "B2: " . fetch($port_b, "rinit.rinit.val");
+
+?>
+--CLEAN--
+<?php
+$inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "025";
+// Restore INI to original state
+$inifile = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "025" . DIRECTORY_SEPARATOR . "rinit.ini";
+file_put_contents($inifile, "[rinit]\nval=\"original\"\n");
 ?>
 --EXPECTF--
-PHP Warning:  Nesting too deep? key name contains more than 64 '.' in Unknown on line 0
+== Case A: file changed, dir mtime unchanged ==
+A1: string(8) "original"
+A-dir-mtime-changed: NO
+A2: string(8) "original"
 
-Warning: Nesting too deep? key name contains more than 64 '.' in Unknown on line 0
-string(2) "ok"
-NULL
+== Case B: check_delay=3600 blocks re-scan ==
+B1: string(8) "original"
+B2: string(8) "original"

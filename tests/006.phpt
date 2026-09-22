@@ -1,16 +1,63 @@
 --TEST--
-Check for Yaconf with section 
+Check for Complex usage
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
 yaconf.directory={PWD}/inis/006
-log_errors=1
+--ENV--
+YACONF=2.0.x
 --FILE--
 <?php 
-var_dump(Yaconf::has("a"));
+print_r(Yaconf::get("env-sections"));
 ?>
 --EXPECTF--
-PHP Warning:  Nesting too deep? Only less than 16 level inheritance is allowed in Unknown on line 0
+Array
+(
+    [app] => Array
+        (
+            [basic] => test
+            [app] => Array
+                (
+                    [name] => yaconf
+                )
 
-Warning: Nesting too deep? Only less than 16 level inheritance is allowed in Unknown on line 0
-bool(false)
+            [app ] => Array
+                (
+                    [ verison] => %s
+                )
+
+        )
+
+    [yaconf] => Array
+        (
+            [basic] => test
+            [app] => Array
+                (
+                    [name] => yaconf
+                )
+
+            [app ] => Array
+                (
+                    [ verison] => %s
+                )
+
+            [version] => %s
+        )
+
+    [php] => Array
+        (
+            [basic] => test
+            [app] => Array
+                (
+                    [name] => yaconf
+                )
+
+            [app ] => Array
+                (
+                    [ verison] => %s
+                )
+
+            [version] => %s
+        )
+
+)

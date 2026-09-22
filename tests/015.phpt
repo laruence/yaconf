@@ -1,5 +1,5 @@
 --TEST--
-Yaconf::get() default value types
+Yaconf empty config directory
 --CREDITS--
 Jarvis (AI assistant to Laruence)
 --SKIPIF--
@@ -8,37 +8,12 @@ Jarvis (AI assistant to Laruence)
 yaconf.directory={PWD}/inis/015
 --FILE--
 <?php
-// No default arg → null
-var_dump(Yaconf::get("defaults.nonexist"));
-
-// String default
-var_dump(Yaconf::get("defaults.nonexist", "hello"));
-
-// Int default
-var_dump(Yaconf::get("defaults.nonexist", 42));
-
-// Bool default
-var_dump(Yaconf::get("defaults.nonexist", true));
-var_dump(Yaconf::get("defaults.nonexist", false));
-
-// Array default
-var_dump(Yaconf::get("defaults.nonexist", array("a" => 1)));
-
-// Null default (explicit)
-var_dump(Yaconf::get("defaults.nonexist", null));
-
-// Existing value: default must NOT be returned
-var_dump(Yaconf::get("defaults.real", "should_not_appear"));
+// NOTE: inis/015/ has no .ini files. get()/has() should return null/false gracefully.
+var_dump(Yaconf::has("anything"));
+var_dump(Yaconf::get("anything"));
+var_dump(Yaconf::get("anything", "default"));
 ?>
---EXPECTF--
-NULL
-string(5) "hello"
-int(42)
-bool(true)
+--EXPECT--
 bool(false)
-array(1) {
-  ["a"]=>
-  int(1)
-}
 NULL
-string(5) "hello"
+string(7) "default"

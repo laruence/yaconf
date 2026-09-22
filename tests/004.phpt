@@ -1,40 +1,24 @@
 --TEST--
-Check for Yaconf info
+Check for Yaconf
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
-yaconf.directory={PWD}/inis/004
+yaconf.directory={PWD}/inis/004/
 --FILE--
 <?php 
-phpinfo(INFO_MODULES);
+var_dump(Yaconf::get("section.bar.application.test"));
+var_dump(Yaconf::has("section.bar.application"));
+var_dump(Yaconf::has("section.bar.application.."));
+var_dump(Yaconf::has(".section.bar..application"));
+var_dump(Yaconf::has("section.bar..application"));
+var_dump(Yaconf::has("section.bar.application.nonexists"));
+var_dump(Yaconf::get("section.bar.application.nonexists", "default"));
 ?>
 --EXPECTF--
-%a
-yaconf
-
-yaconf support => enabled
-version => %s
-yaconf config last check time => %s
-%A
-parsed supported config file => mtime
-a.ini => %s
-
-b.ini => %s
-
-c.ini => %s
-
-d.ini => %s
-
-subdir/e.ini => %s
-
-
-config sub-directory => mtime
-subdir => %s
-
-
-compacted block => value
-compacted files => %s
-compacted size => %s
-
-Directive => Local Value => Master Value
-%a
+string(1) "1"
+bool(true)
+bool(false)
+bool(false)
+bool(false)
+bool(false)
+string(7) "default"

@@ -1,60 +1,39 @@
 --TEST--
-Yaconf MINIT: a directory wins over a same-named config file with a warning
+Check for Yaconf with wrong arguments (PHP > 8)
 --SKIPIF--
-<?php
-if (!extension_loaded("yaconf")) print "skip";
-if (substr(PHP_OS, 0, 3) == 'WIN') die("skip POSIX test");
-if (!file_exists(dirname(__DIR__) . "/modules/yaconf.so")) die("skip yaconf.so not built");
-?>
+<?php if (!extension_loaded("yaconf")) die("skip"); ?>
+<?php if (version_compare(PHP_VERSION, '8.0.0') < 0) die("skip, only for 8.x"); ?>
+--INI--
 --FILE--
-<?php
-// NOTE: MINIT parses the directory before any script runs, so the conflicting
-//       entries must exist before the child php process starts
+<?php 
 
-$inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "020";
-if (!is_dir($inidir . DIRECTORY_SEPARATOR . "foo")) {
-    mkdir($inidir . DIRECTORY_SEPARATOR . "foo", 0755, true);
+try {
+	var_dump(Yaconf::get(array()));
+} catch(Error $e) {
+	var_dump($e->getMessage());
 }
-file_put_contents($inidir . DIRECTORY_SEPARATOR . "foo.ini", "a=1\n");
-file_put_contents($inidir . DIRECTORY_SEPARATOR . "foo" . DIRECTORY_SEPARATOR . "x.ini", "b=2\n");
 
-$php = getenv('TEST_PHP_EXECUTABLE') ?: PHP_BINARY;
-/* TEST_PHP_ARGS carries run-tests.php options (e.g. --show-diff) on CI,
- * which the PHP CLI does not understand; skip it there, like yaconf.inc */
-$cmd_args = NULL;
-if (!(bool)getenv('TRAVIS') && !(bool)getenv('GITHUB')) {
-    $cmd_args = getenv('TEST_PHP_ARGS');
+try {
+	var_dump(Yaconf::has(fopen(__FILE__, "r")));
+} catch(Error $e) {
+	var_dump($e->getMessage());
 }
-$cmd_args = " -d extension=" . dirname(__DIR__) . "/modules/yaconf.so " . $cmd_args;
-$cmd_args .= " -d yaconf.directory=" . $inidir;
 
-/* the directory must win: foo.x.b comes from foo/x.ini, foo.ini is skipped;
-   2>&1 merges the startup warning (emitted at MINIT) with the script output */
-$code = 'var_dump(Yaconf::has("foo")); var_dump(Yaconf::get("foo.x.b")); var_dump(Yaconf::has("foo.a"));';
-$cmd = "exec {$php} -n {$cmd_args} -r " . escapeshellarg($code) . " 2>&1";
-
-$proc = proc_open($cmd, array(1 => array("pipe", "w"), 2 => array("pipe", "w")), $pipes);
-if (!is_resource($proc)) {
-    die("failed to spawn child php");
+try {
+	var_dump(Yaconf::get());
+} catch(Error $e) {
+	var_dump($e->getMessage());
 }
-echo stream_get_contents($pipes[1]);
-echo stream_get_contents($pipes[2]);
-fclose($pipes[1]);
-fclose($pipes[2]);
-$status = proc_close($proc);
-echo "exit=$status\n";
-?>
---CLEAN--
-<?php
-$inidir = __DIR__ . DIRECTORY_SEPARATOR . "inis" . DIRECTORY_SEPARATOR . "020";
-@unlink($inidir . DIRECTORY_SEPARATOR . "foo.ini");
-@unlink($inidir . DIRECTORY_SEPARATOR . "foo" . DIRECTORY_SEPARATOR . "x.ini");
-@rmdir($inidir . DIRECTORY_SEPARATOR . "foo");
-@rmdir($inidir);
+
+try {
+    var_dump(Yaconf::has());
+} catch(Error $e) {
+    var_dump($e->getMessage());
+};
+
 ?>
 --EXPECTF--
-%a yaconf: name conflict between supported config files and directory 'foo'; directory wins in Unknown on line 0
-bool(true)
-string(1) "2"
-bool(false)
-exit=0
+string(70) "Yaconf::get(): Argument #1 ($name) must be of type string, array given"
+string(73) "Yaconf::has(): Argument #1 ($name) must be of type string, resource given"
+string(50) "Yaconf::get() expects at least 1 argument, 0 given"
+string(49) "Yaconf::has() expects exactly 1 argument, 0 given"

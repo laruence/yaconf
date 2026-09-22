@@ -59,9 +59,6 @@
     <file name="011.phpt" role="test" />
     <file name="012.phpt" role="test" />
     <file name="013.phpt" role="test" />
-    <file name="issue19.phpt" role="test" />
-    <file name="issue26.phpt" role="test" />
-    <file name="issue67.phpt" role="test" />
     <file name="014.phpt" role="test" />
     <file name="015.phpt" role="test" />
     <file name="016.phpt" role="test" />
@@ -85,65 +82,67 @@
     <file name="034.phpt" role="test" />
     <file name="035.phpt" role="test" />
     <file name="036.phpt" role="test" />
+    <file name="037.phpt" role="test" />
     <file name="038.phpt" role="test" />
-    <file name="039.phpt" role="test" />
-    <file name="041.phpt" role="test" />
     <file name="yaconf.inc" role="test" />
     <dir name="inis">
      <dir name="002">
-      <file name="basic.ini" role="test" />
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="003">
-      <file name="section.ini" role="test" />
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="004">
       <file name="a.ini" role="test" />
-      <file name="b.ini" role="test" />
-      <file name="d.ini" role="test" />
-      <file name="c.ini" role="test" />
       <file name="a.ini.OLD" role="test" />
+      <file name="b.ini" role="test" />
+      <file name="c.ini" role="test" />
+      <file name="d.ini" role="test" />
       <dir name="subdir">
        <file name="e.ini" role="test" />
       </dir>
      </dir>
+     <dir name="003">
+      <file name="baseline.ini" role="test" />
+      <file name="basic.ini" role="test" />
+     </dir>
+     <dir name="004">
+      <file name="baseline.ini" role="test" />
+      <file name="section.ini" role="test" />
+     </dir>
      <dir name="005">
-      <file name="a.ini" role="test" />
-      <file name="foo.ini" role="test" />
+      <file name="baseline.ini" role="test" />
+      <file name="types.ini" role="test" />
      </dir>
      <dir name="006">
-      <file name="a.ini" role="test" />
-      <file name="foo.ini" role="test" />
+      <file name="baseline.ini" role="test" />
+      <file name="env-sections.ini" role="test" />
+     </dir>
+     <dir name="007">
+      <file name="baseline.ini" role="test" />
+      <file name="empty-array.ini" role="test" />
+     </dir>
+     <dir name="008">
+      <file name="baseline.ini" role="test" />
+      <file name="deep.ini" role="test" />
+      <file name="normal.ini" role="test" />
+      <file name="too-deep.ini" role="test" />
      </dir>
      <dir name="009">
-      <file name="a.ini" role="test" />
-      <file name="foo.ini" role="test" />
+      <file name="baseline.ini" role="test" />
+      <file name="too-deep-sections.ini" role="test" />
      </dir>
      <dir name="010">
-      <file name="a.ini" role="test" />
-      <file name="foo.ini" role="test" />
+      <file name="bad-syntax.ini" role="test" />
+      <file name="baseline.ini" role="test" />
      </dir>
      <dir name="011">
-      <file name="011.ini" role="test" />
-      <file name="foo.ini" role="test" />
+      <file name="baseline.ini" role="test" />
+      <file name="dot.ini" role="test" />
+      <file name="prefix.ini" role="test" />
      </dir>
-     <dir name="issue26">
-      <file name="issue26.ini" role="test" />
-      <file name="foo.ini" role="test" />
+     <dir name="012">
+      <file name="baseline.ini" role="test" />
+      <file name="inherit.ini" role="test" />
+      <file name="sections.ini" role="test" />
      </dir>
-     <dir name="issue05">
-      <file name="issue05.ini" role="test" />
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="issue14">
-      <file name="issue14.ini" role="test" />
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="issue67">
-      <file name="a.ini" role="test" />
-      <file name="b.ini" role="test" />
-      <file name="foo.ini" role="test" />
+     <dir name="013">
+      <file name="empty_section.ini" role="test" />
+      <file name="scalar_parent.ini" role="test" />
      </dir>
      <dir name="014">
       <file name="foo.ini" role="test" />
@@ -155,59 +154,38 @@
       </dir>
      </dir>
      <dir name="015">
-      <file name="defaults.ini" role="test" />
-      <file name="foo.ini" role="test" />
+      <file name=".gitkeep" role="test" />
      </dir>
      <dir name="016">
-      <file name="dot.ini" role="test" />
-      <file name="prefix.ini" role="test" />
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="017">
-      <file name="sections.ini" role="test" />
-      <file name="inherit.ini" role="test" />
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="018">
-      <file name="types.ini" role="test" />
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="019">
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="021">
-      <file name="rinit.ini" role="test" />
-      <file name="foo.ini" role="test" />
-     </dir>
-     <dir name="023">
-      <file name="root.ini" role="test" />
-      <file name="foo.ini" role="test" />
-      <dir name="sub">
-       <file name="child.ini" role="test" />
-      </dir>
-     </dir>
-     <dir name="024">
       <file name="config.ini" role="test" />
       <file name="notes.md" role="test" />
       <file name="readme.txt" role="test" />
      </dir>
-     <dir name="025">
-      <file name="deep.ini" role="test" />
-      <file name="normal.ini" role="test" />
+     <dir name="017">
+      <file name="sparse.ini" role="test" />
      </dir>
-     <dir name="026">
-      <file name="scalar_parent.ini" role="test" />
-     </dir>
-     <dir name="027">
-      <file name="empty_section.ini" role="test" />
-     </dir>
-     <dir name="028">
-      <file name="rinit.ini" role="test" />
-     </dir>
-     <dir name="029">
+     <dir name="018">
       <file name="app.ini" role="test" />
      </dir>
-     <dir name="030">
+     <dir name="021">
+      <file name="baseline.ini" role="test" />
+      <file name="defaults.ini" role="test" />
+     </dir>
+     <dir name="024">
+      <file name="baseline.ini" role="test" />
+      <file name="root.ini" role="test" />
+      <dir name="sub">
+       <file name="child.ini" role="test" />
+      </dir>
+     </dir>
+     <dir name="025">
+      <file name="baseline.ini" role="test" />
+      <file name="rinit.ini" role="test" />
+     </dir>
+     <dir name="026">
+      <file name="rinit.ini" role="test" />
+     </dir>
+     <dir name="027">
       <file name="a.ini" role="test" />
       <file name="app.ini" role="test" />
       <file name="b.ini" role="test" />
@@ -219,29 +197,24 @@
        <file name="child.ini" role="test" />
       </dir>
      </dir>
-     <dir name="031">
+     <dir name="028">
       <file name="app.ini" role="test" />
      </dir>
-     <dir name="032">
-      <file name="sparse.ini" role="test" />
-     </dir>
-     <dir name="033">
+     <dir name="029">
       <file name="app.yaml" role="test" />
       <file name="short.yml" role="test" />
      </dir>
-     <dir name="034">
+     <dir name="030">
       <file name="app.yaml" role="test" />
       <file name="typed.yml" role="test" />
      </dir>
-     <dir name="035">
-      <file name="service.ini" role="test" />
-      <file name="service.yaml" role="test" />
-      <file name="service.yml" role="test" />
-     </dir>
-     <dir name="036">
+     <dir name="031">
       <file name="foo.ini" role="test" />
       <file name="foo.yaml" role="test" />
       <file name="foo.yml" role="test" />
+      <file name="service.ini" role="test" />
+      <file name="service.yaml" role="test" />
+      <file name="service.yml" role="test" />
       <dir name="foo">
        <file name="child.ini" role="test" />
       </dir>
@@ -250,27 +223,42 @@
        <file name="short.yml" role="test" />
       </dir>
      </dir>
-     <dir name="038">
-      <file name="invalid.yaml" role="test" />
-      <file name="list.yaml" role="test" />
-      <file name="scalar.yml" role="test" />
-     </dir>
-     <dir name="039">
+     <dir name="032">
       <file name="alias.yaml" role="test" />
       <file name="binary.yml" role="test" />
       <file name="complex-key.yaml" role="test" />
       <file name="custom.yaml" role="test" />
       <file name="infinite.yml" role="test" />
+      <file name="invalid.yaml" role="test" />
+      <file name="list.yaml" role="test" />
       <file name="multidoc.yaml" role="test" />
       <file name="overflow.yml" role="test" />
+      <file name="scalar.yml" role="test" />
       <file name="timestamp.yml" role="test" />
      </dir>
-     <dir name="041">
+     <dir name="033">
       <file name="app.yaml" role="test" />
       <file name="sub.yaml" role="test" />
       <dir name="nested">
        <file name="child.yaml" role="test" />
       </dir>
+     </dir>
+     <dir name="034">
+      <file name="baseline.ini" role="test" />
+      <file name="duplicate-keys.ini" role="test" />
+     </dir>
+     <dir name="035">
+      <file name="baseline.ini" role="test" />
+      <file name="pop-entry.ini" role="test" />
+     </dir>
+     <dir name="037">
+      <file name="baseline.ini" role="test" />
+      <file name="memcache.ini" role="test" />
+     </dir>
+     <dir name="038">
+      <file name="a.ini" role="test" />
+      <file name="b.ini" role="test" />
+      <file name="baseline.ini" role="test" />
      </dir>
     </dir>
    </dir>

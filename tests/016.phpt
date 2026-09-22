@@ -1,5 +1,7 @@
 --TEST--
-Yaconf dot notation lookup edge cases
+Yaconf: non-.ini files in config directory are skipped
+--CREDITS--
+Jarvis (AI assistant to Laruence)
 --SKIPIF--
 <?php if (!extension_loaded("yaconf")) print "skip"; ?>
 --INI--
@@ -7,75 +9,28 @@ yaconf.directory={PWD}/inis/016
 --FILE--
 <?php
 // inis/016 layout:
-//   dot.ini     scalar, valid.first.second, numbers[]/numbers.key_01
-//   prefix.ini  scalar, deep.a.b, list[], [section] key/num
+//   config.ini    key="from_ini"
+//   readme.txt    secret="should_not_load"   ← should be ignored
+//   notes.md      other=42                   ← should be ignored
 
-// Root key exists
-var_dump(Yaconf::has("dot"));
+// .ini file must be loaded
+var_dump(Yaconf::get("config.key"));
 
-// Root key does not exist
-var_dump(Yaconf::has("no_such_root"));
+// .txt and .md files must NOT be loaded
+var_dump(Yaconf::get("secret"));
+var_dump(Yaconf::get("other"));
 
-// Access scalar as intermediate node: "dot.scalar.X" where dot.scalar = "hello"
-// The requested key does not exist, so the default is applied
-var_dump(Yaconf::get("dot.scalar.nope"));
-var_dump(Yaconf::get("dot.scalar.nope", "fallback"));
+// has() must also reflect the skip
+var_dump(Yaconf::has("secret"));
+var_dump(Yaconf::has("other"));
 
-// Access valid deep path (within nesting limit)
-var_dump(Yaconf::get("dot.valid.first.second"));
-
-// Numeric index access
-var_dump(Yaconf::get("dot.numbers.0"));
-var_dump(Yaconf::get("dot.numbers.1"));
-
-// Non-numeric key that looks like a number but stays string key
-var_dump(Yaconf::get("dot.numbers")["key_01"]);
-
-// Consecutive dots — empty segment resolves to nothing, returns null
-var_dump(Yaconf::get("dot..gap"));
-var_dump(Yaconf::has("dot..gap"));
-
-// Control cases: plain lookups on prefix.ini
-var_dump(Yaconf::get("prefix.scalar"));
-var_dump(Yaconf::get("prefix.section.key"));
-var_dump(Yaconf::get("prefix.section.num"));
-var_dump(Yaconf::get("prefix.deep.a.b"));
-var_dump(Yaconf::get("prefix.list.0"));
-var_dump(Yaconf::get("prefix.section.nope"));
-var_dump(Yaconf::get("prefix.nope.deep"));
-
-// A path that goes DEEPER than an existing scalar value does not exist,
-// get() returns the default and has() returns false
-var_dump(Yaconf::get("prefix.scalar.deeper"));
-var_dump(Yaconf::get("prefix.scalar.deeper", "fallback"));
-var_dump(Yaconf::has("prefix.scalar.deeper"));
-var_dump(Yaconf::get("prefix.section.key.deeper"));
-var_dump(Yaconf::get("prefix.section.num.deeper"));
-var_dump(Yaconf::get("prefix.deep.a.b.deeper"));
-var_dump(Yaconf::get("prefix.list.0.deeper"));
+// the .ini file's key must still be found
+var_dump(Yaconf::has("config.key"));
 ?>
---EXPECTF--
+--EXPECT--
+string(8) "from_ini"
+NULL
+NULL
+bool(false)
+bool(false)
 bool(true)
-bool(false)
-NULL
-string(8) "fallback"
-string(5) "third"
-string(4) "zero"
-string(3) "one"
-string(3) "yes"
-NULL
-bool(false)
-string(5) "hello"
-string(5) "value"
-string(2) "42"
-string(4) "leaf"
-string(1) "a"
-NULL
-NULL
-NULL
-string(8) "fallback"
-bool(false)
-NULL
-NULL
-NULL
-NULL
