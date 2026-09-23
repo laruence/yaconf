@@ -2,7 +2,16 @@
 
 [![AppVeyor](https://ci.appveyor.com/api/projects/status/hbrmch6np854b4b5/branch/master?svg=true)](https://ci.appveyor.com/project/laruence/yaconf/branch/master) [![Linux](https://github.com/laruence/yaconf/actions/workflows/linux.yml/badge.svg?branch=master)](https://github.com/laruence/yaconf/actions/workflows/linux.yml) [![Windows](https://github.com/laruence/yaconf/actions/workflows/windows.yml/badge.svg?branch=master)](https://github.com/laruence/yaconf/actions/workflows/windows.yml)
 
-A PHP Persistent Configuration Container
+Ultra-fast, Secure, and Persistent Configuration Management for PHP
+
+## Requirement
+
+- PHP 7+
+- Optional YAML support: libyaml headers/library plus `--with-yaml`
+
+## Introduction
+
+Yaconf is a configuration container. It parses INI files by default, with optional YAML support backed directly by libyaml, and stores the result in persistent memory at startup, where it stays for the entire PHP lifecycle.
 
 ## Features
 
@@ -14,15 +23,6 @@ A PHP Persistent Configuration Container
 - Configurations reload automatically after changes (non-ZTS only), including sub-directories
 - Configuration can live in a root-only directory outside the web root
 - C API exported for use by other PHP extensions
-
-## Requirement
-
-- PHP 7+
-- Optional YAML support: libyaml headers/library plus `--with-yaml`
-
-## Introduction
-
-Yaconf is a configuration container. It parses INI files by default, with optional YAML support backed directly by libyaml, and stores the result in persistent memory at startup, where it stays for the entire PHP lifecycle.
 
 ### Ultra fast
 
